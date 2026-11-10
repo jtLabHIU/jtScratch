@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# etrobo environment addon wrapper: jtScratch and jtS3H builder
+addon_name="jtScratch"
+# Copyright (c) 2020-2026 jtLab, Hokkaido Information University
+# by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Released under the MIT license
+# https://opensource.org/licenses/mit-license.php
+#
+addon_dir="$ETROBO_ADDON/$addon_name"
+ver=`cd "$addon_dir"; git show -s --date=short --format="%cd.%h"`
+
+if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
+    echo "usage: jtScratch <command> [<params> ...] invoke subcommand of jtScratch addon"
+    exit 0
+elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
+    echo "Ver.$ver"
+    exit 0
+elif [ "$1" == "env" ]; then
+    export ETROBO_ADDON_JTSCRATCH="$addon_dir"
+elif [ "$1" == "unset" ]; then
+    unset ETROBO_ADDON_JTSCRATCH
+else
+    # invoke subcommand
+    if [ -f "$addon_dir/scripts/$1" ]; then
+        "$addon_dir/scripts/$1" "${@:2}"
+    else
+        echo "Error: subcommand '$1' is not found in jtScratch addon."
+        exit 1
+    fi
+fi
