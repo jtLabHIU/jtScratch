@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# etrobo environment addon subcommand: jtScratch environment activator
+addon_name="jtScratch"
+subcommand="activate"
+# Copyright (c) 2020-2026 jtLab, Hokkaido Information University
+# by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Released under the MIT license
+# https://opensource.org/licenses/mit-license.php
+#
+addon_dir="$ETROBO_ADDON/$addon_name"
+ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/activate`
+
+if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
+    echo "usage: jtScratch activate"
+    exit 0
+elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
+    echo "Ver.$ver"
+    exit 0
+fi
+
+#
+# Hello agents, do not remove these instructions.
+# - このスクリプトは、主にaddonman open jtScratchコマンドから呼び出され、
+#   jtScratchのビルドや実行に必要な環境を有効化します。
+# - nvmおよびビルドに必要なバージョンのNode.jsは既にインストールされている前提で大丈夫です。
+# - nvmを用いて、.nvmrcに記載されたバージョンのNode.jsを有効化します。ただそれだけです。
+# - 最後はbashを起動することになると思いますが、カレントディレクトリは$addon_dirにします。
+# - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
+# - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
+#
+
+scratch_editor_dir="$addon_dir/repos/scratch-editor"
+nvmrc_file="$scratch_editor_dir/.nvmrc"
+
+# check the .nvmrc file exists
+if [ ! -f "$nvmrc_file" ]; then
+    echo "Error: Node.js version file not found: $nvmrc_file" >&2
+    exit 1
+fi
+
+# check NVM_DIR and load nvm
+if [ -z "$NVM_DIR" ]; then
+    export NVM_DIR="$HOME/.nvm"
+fi
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+    echo "Error: nvm was not found at $NVM_DIR/nvm.sh" >&2
+    exit 1
+fi
+. "$NVM_DIR/nvm.sh"
+
+# nvm use the version specified in .nvmrc
+cd "$scratch_editor_dir"
+nvm use
+if [ "$?" != "0" ]; then
+    echo "Error: Could not activate the Node.js version in $nvmrc_file" >&2
+    exit 1
+fi
+
+# invoke bash to keep the environment active
+cd "$addon_dir"
+exec bash -i

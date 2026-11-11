@@ -7,7 +7,7 @@ addon_name="jtScratch"
 # https://opensource.org/licenses/mit-license.php
 #
 addon_dir="$ETROBO_ADDON/$addon_name"
-ver=`cd "$addon_dir"; git show -s --date=short --format="%cd.%h"`
+ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/jtScratch`
 
 if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
     echo "usage: jtScratch <command> [<params> ...] invoke subcommand of jtScratch addon"

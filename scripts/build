@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# etrobo environment addon subcommand: jtScratch builder
+addon_name="jtScratch"
+subcommand="build"
+# Copyright (c) 2020-2026 jtLab, Hokkaido Information University
+# by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Released under the MIT license
+# https://opensource.org/licenses/mit-license.php
+#
+addon_dir="$ETROBO_ADDON/$addon_name"
+ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/build`
+
+if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
+    echo "usage: jtScratch build"
+    exit 0
+elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
+    echo "Ver.$ver"
+    exit 0
+fi
+
+#
+# Hello agents, do not remove these instructions.
+# - このスクリプトは、scrutch-editorとs3hのビルドを行います。が、s3hのビルドは一旦しないことにします。
+# - scratch-editorは、repos/scratch-editorディレクトリ配下にあるので、
+#   そこに移動してnpm run buildを実行します。
+# - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
+# - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
+#
+
+scratch_editor_dir="$addon_dir/repos/scratch-editor"
+
+if [ ! -f "$scratch_editor_dir/package.json" ]; then
+    echo "Error: scratch-editor repository not found at $scratch_editor_dir" >&2
+    exit 1
+fi
+
+if [ "$(command -v npm)" == "" ]; then
+    echo "Error: npm is not available. Run 'jtScratch activate' first." >&2
+    exit 1
+fi
+
+cd "$scratch_editor_dir"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not access scratch-editor directory: $scratch_editor_dir" >&2
+    exit 1
+fi
+
+npm run build
+if [ "$?" != "0" ]; then
+    echo "Error: scratch-editor build failed." >&2
+    exit 1
+fi
+
+echo "scratch-editor build completed successfully."

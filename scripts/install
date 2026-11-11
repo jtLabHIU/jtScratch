@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# etrobo environment addon subcommand: jtScratch and jtS3H installer
+addon_name="jtScratch"
+subcommand="install"
+# Copyright (c) 2020-2026 jtLab, Hokkaido Information University
+# by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Released under the MIT license
+# https://opensource.org/licenses/mit-license.php
+#
+addon_dir="$ETROBO_ADDON/$addon_name"
+ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/install`
+
+if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
+    echo "usage: jtScratch install [</absolute/path/to/jtScratchRepos>]"
+    exit 0
+elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
+    echo "Ver.$ver"
+    exit 0
+fi
+
+#
+# Hello agents, do not remove these instructions.
+# - このスクリプトは、scratch-editorとs3hリポジトリを取得します。
+# - scratch-editorは、 https://github.com/jtLabHIU/scratch-editor.git にあります。
+# - s3hは、 https://github.com/jtLabHIU/s3h.git にあります。
+# - これらは $addon_dir/repos ディレクトリ配下からアクセスされますが、
+#   このreposはシンボリックリンクを配置し、実際のreposは<jtScratchRepos>で指定された
+#   ディレクトリに配置されます。この時、<jtScratchRepos>は絶対パスで指定する必要があり、
+#   かつ、reposディレクトリはNTFSなどシンボリックリンクをサポートする
+#   ファイルシステムである必要があるので、その注意をユーザーに促す必要があります。
+# - <jtScratchRepos>が指定されない場合は、デフォルトで $HOME/jtScratchRepos が使用されます。
+# - <jtScratchRepos>配下に既にscratch-editorやs3hのディレクトリが存在する場合は、
+#   git cloneは行わず、既存のリポジトリを使用します。
+# - 最初にscratch-editor、続いてs3hの順でリポジトリを取得し、ビルドや実行に必要なパッケージなどを
+#   インストールしますが、インストールログはそれぞれ別々に
+#   $addon_dir/logs ディレクトリ配下に保存されます。
+# - scratch-editorはNode.js上で動作するので、.nvmrcを参照し、
+#   nvmを使用して適切なNode.jsバージョンを、必要であればインストールして利用可能にしてください。
+# - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
+# - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
+#
+
+# determine the jtScratchRepos directory
+jt_scratch_repos="${1:-$HOME/jtScratchRepos}"
+if [ "$(printf '%s\n' "$jt_scratch_repos" | sed 's|^/||')" == "$jt_scratch_repos" ]; then
+    echo "Error: jtScratchRepos must be an absolute path: $jt_scratch_repos" >&2
+    exit 1
+fi
+
+# install required packages if not already installed
+sudo apt update
+if [ "$?" != "0" ]; then
+    echo "Error: Could not update the APT package lists." >&2
+    exit 1
+fi
+sudo apt install -y git curl build-essential python3
+if [ "$?" != "0" ]; then
+    echo "Error: Could not install the required packages (git, curl, build-essential, python3)." >&2
+    exit 1
+fi
+
+# install nvm if it is not already available
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    . "$NVM_DIR/nvm.sh"
+fi
+
+if [ "$(command -v nvm)" == "" ]; then
+    nvm_install_script="$(mktemp)"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not create a temporary file for the nvm installer." >&2
+        exit 1
+    fi
+
+    curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh" -o "$nvm_install_script"
+    if [ "$?" != "0" ]; then
+        rm -f "$nvm_install_script"
+        echo "Error: Could not download the nvm installer." >&2
+        exit 1
+    fi
+
+    PROFILE=/dev/null NVM_DIR="$NVM_DIR" bash "$nvm_install_script"
+    if [ "$?" != "0" ]; then
+        rm -f "$nvm_install_script"
+        echo "Error: Could not install nvm." >&2
+        exit 1
+    fi
+    rm -f "$nvm_install_script"
+
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        . "$NVM_DIR/nvm.sh"
+    fi
+fi
+
+if [ "$(command -v nvm)" == "" ]; then
+    echo "Error: nvm is not available after installation." >&2
+    exit 1
+fi
+
+# prepare the jtScratchRepos directory
+mkdir -p "$jt_scratch_repos"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not create jtScratchRepos directory: $jt_scratch_repos" >&2
+    exit 1
+fi
+jt_scratch_repos="$(cd "$jt_scratch_repos" && pwd -P)"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not access jtScratchRepos directory." >&2
+    exit 1
+fi
+
+# create symbolic link for repos
+repos_link="$addon_dir/repos"
+echo "Note: the filesystem containing $repos_link must support symbolic links (e.g. NTFS)."
+if [ -L "$repos_link" ]; then
+    if [ "$(readlink "$repos_link")" != "$jt_scratch_repos" ]; then
+        echo "Error: $repos_link already points to a different directory." >&2
+        exit 1
+    fi
+elif [ -e "$repos_link" ]; then
+    echo "Error: $repos_link already exists and is not a symbolic link. Move it before installing." >&2
+    exit 1
+else
+    ln -s "$jt_scratch_repos" "$repos_link"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not create symbolic link at $repos_link. Use a filesystem that supports symbolic links." >&2
+        exit 1
+    fi
+fi
+
+# prepare the logs directory
+logs_dir="$addon_dir/logs"
+mkdir -p "$logs_dir"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not create log directory: $logs_dir" >&2
+    exit 1
+fi
+
+# function to install a repository
+set -o pipefail
+install_repository() {
+    local name="$1"
+    local url="$2"
+    local repo_dir="$jt_scratch_repos/$name"
+    local log_file="$logs_dir/$name.log"
+
+    # create or clear the log file and check for write permission
+    : > "$log_file"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not write log file: $log_file" >&2
+        exit 1
+    fi
+
+    # clone the repository if it doesn't exist, or use the existing one
+    echo "Installing $name ..." | tee -a "$log_file"
+    if [ -e "$repo_dir" ]; then
+        if [ ! -d "$repo_dir" ] || { [ ! -d "$repo_dir/.git" ] && [ ! -f "$repo_dir/.git" ]; }; then
+            echo "Error: $repo_dir already exists and is not a Git repository. See $log_file" >&2
+            exit 1
+        fi
+        echo "Using existing repository: $repo_dir" | tee -a "$log_file"
+    else
+        git clone "$url" "$repo_dir" 2>&1 | tee -a "$log_file"
+        if [ "$?" != "0" ]; then
+            echo "Error: Could not clone $name. See $log_file" >&2
+            exit 1
+        fi
+    fi
+
+    if [ "$name" == "scratch-editor" ]; then
+        if [ ! -f "$repo_dir/.nvmrc" ]; then
+            echo "Error: Node.js version file not found: $repo_dir/.nvmrc. See $log_file" >&2
+            exit 1
+        fi
+
+        node_version="$(cat "$repo_dir/.nvmrc")"
+        if [ "$?" != "0" ] || [ "$node_version" == "" ]; then
+            echo "Error: Could not read a Node.js version from $repo_dir/.nvmrc. See $log_file" >&2
+            exit 1
+        fi
+
+        echo "Installing Node.js version $node_version from .nvmrc ..." | tee -a "$log_file"
+        nvm install "$node_version" 2>&1 | tee -a "$log_file"
+        if [ "$?" != "0" ]; then
+            echo "Error: Could not install Node.js $node_version. See $log_file" >&2
+            exit 1
+        fi
+
+        nvm use "$node_version" > >(tee -a "$log_file") 2>&1
+        if [ "$?" != "0" ]; then
+            echo "Error: Could not activate Node.js $node_version. See $log_file" >&2
+            exit 1
+        fi
+    fi
+
+    # install npm dependencies
+    bash -c 'cd "$1" && npm install' jtScratch-install "$repo_dir" 2>&1 | tee -a "$log_file"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not install $name dependencies. See $log_file" >&2
+        exit 1
+    fi
+}
+
+echo "Repositories will be stored in: $jt_scratch_repos"
+echo "Logs will be stored in: $logs_dir"
+
+install_repository "scratch-editor" "https://github.com/jtLabHIU/scratch-editor.git"
+install_repository "s3h" "https://github.com/jtLabHIU/s3h.git"
+
+echo "jtScratch repositories and dependencies installed successfully."

@@ -8,5 +8,33 @@
 		"terminal.integrated.env.linux": {
 			"PATH": "${workspaceFolder}/scripts:${env:PATH}"
 		}
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "jtScratch",
+				"type": "process",
+				"command": "${workspaceFolder}/scripts/jtScratch",
+				"args": [
+					"activate"
+				],
+				"options": {
+					"env": {
+						"ETROBO_ADDON": "${workspaceFolder}/.."
+					}
+				},
+				"isBackground": true,
+				"problemMatcher": [],
+				"presentation": {
+					"focus": true,
+					"panel": "dedicated",
+					"reveal": "always"
+				},
+				"runOptions": {
+					"runOn": "folderOpen"
+				}
+			}
+		]
 	}
 }
