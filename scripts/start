@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# etrobo environment addon subcommand: jtScratch starter
+addon_name="jtScratch"
+subcommand="start"
+# Copyright (c) 2026 jtLab, Hokkaido Information University
+# by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Released under the MIT license
+# https://opensource.org/licenses/mit-license.php
+#
+addon_dir="$ETROBO_ADDON/$addon_name"
+ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/start`
+
+if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
+    echo "usage: jtScratch start"
+    exit 0
+elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
+    echo "Ver.$ver"
+    exit 0
+fi
+
+scratch_editor_dir="$addon_dir/repos/scratch-editor"
+
+if [ ! -f "$scratch_editor_dir/package.json" ]; then
+    echo "Error: scratch-editor repository not found at $scratch_editor_dir" >&2
+    exit 1
+fi
+
+if [ "$(command -v npm)" == "" ]; then
+    echo "Error: npm is not available. Run 'jtScratch activate' first." >&2
+    exit 1
+fi
+
+cd "$scratch_editor_dir"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not access scratch-editor directory: $scratch_editor_dir" >&2
+    exit 1
+fi
+
+npm start
+if [ "$?" != "0" ]; then
+    echo "Error: scratch-editor start failed." >&2
+    exit 1
+fi

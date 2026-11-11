@@ -25,3 +25,16 @@ workspace task the first time.
 
 Run `jtScratch build` from the activated shell to build `scratch-editor` with
 `npm run build`.
+
+Run `jtScratch start` from the activated shell to start `scratch-editor` with
+`npm start`.
+
+## Memory requirements
+
+The build and start processes can be slow on machines with limited memory. As
+a reference, processing on an 8 GB machine can take five times as long as on a
+32 GB machine. During a build, VS Code may mistake a temporarily unresponsive
+WSL environment for a hang, which can cause the build to fail. If a build
+fails this way, run it from an etrobo shell started in shell mode, or from the
+addon terminal opened with `addonman open jtScratch terminal`, instead of
+using the VS Code integrated terminal.

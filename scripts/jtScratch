@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # etrobo environment addon wrapper: jtScratch and jtS3H builder
 addon_name="jtScratch"
-# Copyright (c) 2020-2026 jtLab, Hokkaido Information University
+# Copyright (c) 2026 jtLab, Hokkaido Information University
 # by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
 # Released under the MIT license
 # https://opensource.org/licenses/mit-license.php
