@@ -22,7 +22,9 @@ fi
 # Hello agents, do not remove these instructions.
 # - このスクリプトは、主にaddonman open jtScratchコマンドから呼び出され、
 #   jtScratchのビルドや実行に必要な環境を有効化します。
-# - nvmおよびビルドに必要なバージョンのNode.jsは既にインストールされている前提で大丈夫です。
+# - nvmおよびビルドに必要なバージョンのNode.jsがインストールされていなければ、
+#   jtScratch installを呼び出してインストールしてください。
+#   nvmrc_fileが存在しない場合も同様です。
 # - nvmを用いて、.nvmrcに記載されたバージョンのNode.jsを有効化します。ただそれだけです。
 # - 最後はbashを起動することになると思いますが、カレントディレクトリは$addon_dirにします。
 # - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
@@ -31,6 +33,16 @@ fi
 
 scratch_editor_dir="$addon_dir/repos/scratch-editor"
 nvmrc_file="$scratch_editor_dir/.nvmrc"
+
+# prepare the Git repository and Node.js environment if they are missing
+if [ ! -d "$scratch_editor_dir" ] || [ ! -f "$nvmrc_file" ]; then
+    echo "a .nvmrc file is missing. Running 'jtScratch install'..." >&2
+    "$addon_dir/scripts/install"
+    if [ "$?" != "0" ]; then
+        echo "Error: jtScratch install failed while preparing the environment." >&2
+        exit 1
+    fi
+fi
 
 # check the .nvmrc file exists
 if [ ! -f "$nvmrc_file" ]; then
@@ -52,8 +64,18 @@ fi
 cd "$scratch_editor_dir"
 nvm use
 if [ "$?" != "0" ]; then
-    echo "Error: Could not activate the Node.js version in $nvmrc_file" >&2
-    exit 1
+    echo "Required Node.js version is not installed or could not be activated. Running 'jtScratch install'..." >&2
+    "$addon_dir/scripts/install"
+    if [ "$?" != "0" ]; then
+        echo "Error: jtScratch install failed while preparing the environment." >&2
+        exit 1
+    fi
+    cd "$scratch_editor_dir"
+    nvm use
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not activate the Node.js version in $nvmrc_file" >&2
+        exit 1
+    fi
 fi
 
 # invoke bash to keep the environment active
