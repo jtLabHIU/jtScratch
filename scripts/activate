@@ -55,8 +55,11 @@ if [ -z "$NVM_DIR" ]; then
     export NVM_DIR="$HOME/.nvm"
 fi
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-    echo "Error: nvm was not found at $NVM_DIR/nvm.sh" >&2
-    exit 1
+    "$addon_dir/scripts/install"
+    if [ "$?" != "0" ]; then
+        echo "Error: jtScratch install failed while preparing the environment." >&2
+        exit 1
+    fi
 fi
 . "$NVM_DIR/nvm.sh"
 
