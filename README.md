@@ -8,14 +8,15 @@ omitted, repositories are stored in `$HOME/jtScratchRepos`. The addon exposes
 that directory at `repos` through a symbolic link, so the filesystem containing
 the addon must support symbolic links (for example, NTFS).
 
-The installer clones `scratch-editor` and then `s3h` when their directories do
-not already exist. Existing Git repositories are reused without cloning, and
-`npm install` is run in either case. The installer reads the Node.js version
-from `scratch-editor/.nvmrc`, installs and activates it with nvm, and installs
-nvm itself if needed. It uses `sudo apt` to install Git, curl, and the build
-tools required by native npm dependencies (`build-essential` and `python3`).
-Their logs are written separately to `logs/scratch-editor.log` and
-`logs/s3h.log`.
+The installer clones `scratch-editor`, `scratch-desktop`, and then `s3h` when
+their directories do not already exist. Existing Git repositories are reused
+without cloning, and `npm install` is run in each case. The installer reads
+the Node.js version from `scratch-editor/.nvmrc`, installs and activates it
+with nvm, and installs nvm itself if needed. It uses `sudo apt` to install
+Git, curl, and the build tools required by native npm dependencies
+(`build-essential` and `python3`). It also installs `wine64` and `mono-devel`
+for scratch-desktop Windows Electron builds. Their logs are written separately
+to `logs/scratch-editor.log`, `logs/scratch-desktop.log`, and `logs/s3h.log`.
 
 Opening `jtScratch.code-workspace` starts an integrated terminal and runs
 `jtScratch activate`. This activates the Node.js version specified by

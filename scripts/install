@@ -20,8 +20,9 @@ fi
 
 #
 # Hello agents, do not remove these instructions.
-# - このスクリプトは、scratch-editorとs3hリポジトリを取得します。
+# - このスクリプトは、scratch-editorとscratch-desktop、およびs3hリポジトリを取得します。
 # - scratch-editorは、 https://github.com/jtLabHIU/scratch-editor.git にあります。
+# - scratch-desktopは、 https://github.com/jtLabHIU/scratch-desktop.git にあります。
 # - s3hは、 https://github.com/jtLabHIU/s3h.git にあります。
 # - これらは $addon_dir/repos ディレクトリ配下からアクセスされますが、
 #   このreposはシンボリックリンクを配置し、実際のreposは<jtScratchRepos>で指定された
@@ -29,13 +30,15 @@ fi
 #   かつ、reposディレクトリはNTFSなどシンボリックリンクをサポートする
 #   ファイルシステムである必要があるので、その注意をユーザーに促す必要があります。
 # - <jtScratchRepos>が指定されない場合は、デフォルトで $HOME/jtScratchRepos が使用されます。
-# - <jtScratchRepos>配下に既にscratch-editorやs3hのディレクトリが存在する場合は、
+# - <jtScratchRepos>配下に既に同名のディレクトリが存在する場合は、
 #   git cloneは行わず、既存のリポジトリを使用します。
-# - 最初にscratch-editor、続いてs3hの順でリポジトリを取得し、ビルドや実行に必要なパッケージなどを
+# - 最初にscratch-editor、続いてscratch-desktop、s3hの順でリポジトリを取得し、ビルドや実行に必要なパッケージなどを
 #   インストールしますが、インストールログはそれぞれ別々に
 #   $addon_dir/logs ディレクトリ配下に保存されます。
 # - scratch-editorはNode.js上で動作するので、.nvmrcを参照し、
 #   nvmを使用して適切なNode.jsバージョンを、必要であればインストールして利用可能にしてください。
+# - scratch-desktopはWindows向けのElectronビルドを行うので、
+#   もしもnpmでインストールされるパッケージ以外に必要なものがあればインストールしてください。
 # - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
 # - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
 #
@@ -193,6 +196,15 @@ install_repository() {
         fi
     fi
 
+    if [ "$name" == "scratch-desktop" ]; then
+        echo "Installing packages required for Windows Electron builds (wine64, mono-devel) ..." | tee -a "$log_file"
+        sudo apt install -y wine64 mono-devel 2>&1 | tee -a "$log_file"
+        if [ "$?" != "0" ]; then
+            echo "Error: Could not install scratch-desktop Windows build packages. See $log_file" >&2
+            exit 1
+        fi
+    fi
+
     # install npm dependencies
     bash -c 'cd "$1" && npm install' jtScratch-install "$repo_dir" 2>&1 | tee -a "$log_file"
     if [ "$?" != "0" ]; then
@@ -205,6 +217,7 @@ echo "Repositories will be stored in: $jt_scratch_repos"
 echo "Logs will be stored in: $logs_dir"
 
 install_repository "scratch-editor" "https://github.com/jtLabHIU/scratch-editor.git"
+install_repository "scratch-desktop" "https://github.com/jtLabHIU/scratch-desktop.git"
 install_repository "s3h" "https://github.com/jtLabHIU/s3h.git"
 
 echo "jtScratch repositories and dependencies installed successfully."
