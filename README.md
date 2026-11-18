@@ -14,9 +14,11 @@ without cloning, and `npm install` is run in each case. The installer reads
 the Node.js version from `scratch-editor/.nvmrc`, installs and activates it
 with nvm, and installs nvm itself if needed. It uses `sudo apt` to install
 Git, curl, and the build tools required by native npm dependencies
-(`build-essential` and `python3`). It also installs `wine64` and `mono-devel`
-for scratch-desktop Windows Electron builds. Their logs are written separately
-to `logs/scratch-editor.log`, `logs/scratch-desktop.log`, and `logs/s3h.log`.
+(`build-essential` and `python3`). For scratch-desktop Windows Electron builds,
+the installer enables the i386 architecture and installs `wine64`, `wine32:i386`,
+`mono-devel`, and `libnss3`. The Wine runtimes are needed to run Windows
+installer tooling during cross-builds. Logs are written separately to
+`logs/scratch-editor.log`, `logs/scratch-desktop.log`, and `logs/s3h.log`.
 
 Opening `jtScratch.code-workspace` starts an integrated terminal and runs
 `jtScratch activate`. This activates the Node.js version specified by
@@ -26,6 +28,9 @@ workspace task the first time.
 
 Run `jtScratch build` from the activated shell to build `scratch-editor` with
 `npm run build`.
+
+Run `jtScratch build desktop` to build an unsigned Windows NSIS x64 package
+of `scratch-desktop`. The package is written to `scratch-desktop/dist`.
 
 Run `jtScratch start` from the activated shell to start `scratch-editor` with
 `npm start`.
