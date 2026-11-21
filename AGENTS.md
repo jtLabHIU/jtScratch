@@ -41,7 +41,7 @@
 
 ```sh
 # リポジトリとNode.js環境をインストール
-jtScratch install [<absolute-path-to-jtScratchRepos>]
+jtScratch install [--no-clone] [<absolute-path-to-jtScratchRepos>]
 
 # 環境を有効化し、アドオンディレクトリで対話シェルを開く
 jtScratch activate
@@ -88,12 +88,17 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 
 - リポジトリ取得順は `scratch-editor`、`scratch-desktop`、`s3h` です。
 - `scripts/install` が実際のクローン先を準備し、`repos/` のシンボリックリンクを作成します。リンクを配置するファイルシステムはNTFSなどシンボリックリンクをサポートする必要があることをユーザーに案内します。
+- `--no-clone` なしの `jtScratch install` は、不足しているリポジトリをクローンします。`--no-clone` を指定した場合は、不足しているリポジトリをクローンしません。
+- `--no-clone` を指定し、クローン先が指定されておらず `repos` のリンクが既にある場合は、そのリンク先を利用します。クローン先の指定が既存のリンク先と異なる場合はエラーとし、既存のリンク先は変更しません。
 - 対象ディレクトリが存在する場合は再cloneせず、Gitリポジトリとして利用します。
 - 既存ディレクトリがGitリポジトリでない場合は、誤った上書きをせずエラーにします。
 - 各リポジトリのログは別々に `logs/install_<repository-name>.log`へ保存します。
 - ビルドに必要な基本パッケージは、エージェントが必要に応じて判断します。
 - Windows Electronビルドに必要なパッケージも、エージェントが必要に応じて判断します。
 - WSLでは、Linux側のnvm/Node.js環境を準備し、そのインストール完了後、Windows側でのデバッグに必要なNode.js環境を別途用意したPowerShellスクリプトで準備します。Node.jsのバージョン管理にはnvmを使用します。
+- `--no-clone` の場合も、システムパッケージやnvmなど、リポジトリがなくても準備できる環境はインストールします。既存リポジトリの依存関係も必要に応じて準備します。
+- `scratch-editor/.nvmrc` がない場合など、必要なNode.jsバージョンを特定できない場合は、Node.jsをインストールしません。
+- `--no-clone` でリポジトリが不足している場合や `.nvmrc` がない場合は、クローン先を指定して `jtScratch install [<absolute-path-to-jtScratchRepos>]` を実行するようユーザーに案内します。両方に該当する場合も案内は1回だけにします。
 - インストール中に外部通信や管理者権限が必要な処理を行う場合は、その目的をユーザーに示します。失敗した場合は、原因と対処方法、または確認すべきログを案内します。
 
 ## 環境有効化の仕様
@@ -102,6 +107,10 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 - 有効化されたシェルでは `ETROBO_ADDON_JTSCRATCH_ACTIVATION` を `activated` に設定し、有効化されていない場合は未設定にします。
 - nvm、必要なNode.jsバージョン、または `repos/scratch-editor/.nvmrc` が存在しない場合は、`jtScratch install` を呼び出して準備します。
 - Windows側も必要に応じてnvmでNode.jsのバージョンを切り替え、環境が準備されていない場合は `jtScratch install` を呼び出します。Windows側の処理には別途PowerShellスクリプトを使用できます。
+- `addonman` 経由の呼び出しであることを明示的に識別し、必要に応じて `jtScratch install --no-clone` を呼び出します。Windows側の環境準備が必要な場合も同様です。
+- `jtScratch activate` を直接呼び出した場合は、`--no-clone` を指定せずにインストールします。
+- 必要な環境を有効化できない場合は、有効化済みとはせず、ユーザーに原因と対処を案内します。
+- 呼び出し元を識別するためにアドオン管理外のファイルを変更する必要がある場合は、変更前にユーザーに確認します。
 - `jtScratch activate deactivate` または `jtScratch activate --deactivate` では、Linux側のNode.jsをnvmのデフォルトバージョンに戻します。Windows側のNode.jsバージョンは変更しなくても構いません。
 - 有効化または無効化の最後に対話Bashを起動し、カレントディレクトリをアドオンディレクトリにします。
 
