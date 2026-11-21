@@ -20,8 +20,8 @@ the installer enables the i386 architecture and installs `wine64`, `wine32:i386`
 `mono-devel`, and `libnss3`. The Wine runtimes are needed to run Windows
 installer tooling during cross-builds. In WSL, it also installs nvm-windows
 through winget and activates the Node.js version from `.nvmrc` for Windows-side
-debugging. Logs are written separately to `logs/scratch-editor.log`,
-`logs/scratch-desktop.log`, `logs/s3h.log`, and `logs/windows-node.log`.
+debugging. Logs are written separately to `logs/install_scratch-editor.log`,
+`logs/install_scratch-desktop.log`, `logs/install_s3h.log`, and `logs/windows-node.log`.
 
 Opening `jtScratch.code-workspace` starts an integrated terminal and runs
 `jtScratch activate`. This activates the Node.js version specified by

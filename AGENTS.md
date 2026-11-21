@@ -26,11 +26,11 @@
 - `repos/scratch-desktop`
 - `repos/s3h`
 
-実際のクローン先は `jtScratch install` の引数、または既定の `$ETROBO_USERPROFILE/jtScratchRepos` で決まります。Windows側からもリポジトリを使う処理があるため、Windows環境ではクローン先をWindowsファイルシステムからアクセスできる場所にしてください。
+実際のクローン先は `jtScratch install` の引数、または既定の `$ETROBO_USERPROFILE/jtScratchRepos` で決まります。Windows側からもリポジトリを使う処理があるため、Windows環境ではクローン先をWindowsファイルシステムからアクセスできる場所にします。
 
 ## 作業前の確認
 
-1. 変更対象がアドオン本体か、インストール先の外部リポジトリかを確認する。
+1. 変更対象がアドオン本体か、インストール先の外部リポジトリかを確認する。jtScratch関連のセッションでは、`repos/` のリンク先にあるクローン済み外部リポジトリを変更しない。jtScratch配下のこのリポジトリが管理する範囲外のファイルを変更する必要がある場合は、変更前に都度ユーザーに確認する。
 2. `README.md`、対象スクリプト、および `jtScratch.code-workspace` の動作を確認する。
 3. 不要な変更、生成物、既存の外部リポジトリ変更を上書きしない。
 4. 作業前後で `git status --short` を確認する。
@@ -66,10 +66,11 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 
 - Bashスクリプトは `#!/usr/bin/env bash` を使用します。
 - `if` の条件式では角括弧を省略せず、比較演算子は統一して `[ "$a" == "$b" ]` の形式を使います。
-- 入力変値は原則としてダブルクォートで囲み、パスはシェル展開前に検証します。
+- 変数は参照時に原則としてダブルクォートで囲み、パスはシェル展開前に検証します。
 - 失敗時は標準エラーへ具体的な原因を出し、成功時と区別できるエラー文にします。
 - コマンドの終了コードを確認し、失敗を黙って無視しません。
 - 長くても人間が追いやすいコードを優先します。
+- 処理のブロックごとに、その動作内容を表すコメントを平易な英語で書きます。
 - `--help`/`usage` と `--version`/`version`/`ver` の動作を維持します。
 - サブコマンド名とスクリプト名を一致させます。
 
@@ -80,7 +81,7 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 - Node.jsのバージョンは `repos/scratch-editor/.nvmrc` を正として扱います。
 - `jtScratchRepos` は実際のクローン先です。絶対パスで指定し、未指定時は `$ETROBO_USERPROFILE/jtScratchRepos` を使用します。Windows環境ではWindowsファイルシステムからアクセス可能な場所を指定します。
 - WSLでは、Windows側のパス変換に `wslpath`、Node.jsのセットアップに `powershell.exe` を必要に応じて使用します。
-- `repos` は実際のクローン先を指すシンボリックリンクとして維持し、内部スクリプトからの固定された参照パスとして扱います。既存のリンク先を勝手に削除・変更しません。
+- `repos` は実際のクローン先を指すシンボリックリンクとし、内部スクリプトからの固定された参照パスとして扱います。既存のリンク先を勝手に削除・変更しません。
 - `ETROBO_ADDON_JTSCRATCH_ACTIVATION` は有効化済みシェルでのみ `activated` を設定します。
 
 ## インストール仕様
@@ -89,28 +90,48 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 - `scripts/install` が実際のクローン先を準備し、`repos/` のシンボリックリンクを作成します。リンクを含むファイルシステムはシンボリックリンクをサポートする必要があります。
 - 対象ディレクトリが存在する場合は再cloneせず、Gitリポジトリとして利用します。
 - 既存ディレクトリがGitリポジトリでない場合は、誤った上書きをせずエラーにします。
-- 各リポジトリのログは別々に `logs/<repository-name>.log`へ保存します。
-- 基本パッケージはGit、curl、build-essential、python3です。
-- Windows ElectronビルドにはWine/i386、mono-devel、libnss3が必要です。
+- 各リポジトリのログは別々に `logs/install_<repository-name>.log`へ保存します。
+- ビルドに必要な基本パッケージは、エージェントが必要に応じて判断します。
+- Windows Electronビルドに必要なパッケージも、エージェントが必要に応じて判断します。
 - WSLでは、Linux側とWindows側のnvm/Node.js環境を必要に応じて準備します。
-- 外部通信や管理者権限を伴う処理は、変更理由と失敗時の案内を明確にします。
+- インストール中に外部通信や管理者権限が必要な処理を行う場合は、その目的をユーザーに示します。失敗した場合は、原因と対処方法、または確認すべきログを案内します。
 
 ## ビルドと検証
 
-変更がスクリプトに影響する場合は、以下を可能な範囲で実行します。
+変更がスクリプトに影響する場合は、アドオンディレクトリで `scripts/` 配下のPowerShellスクリプト以外のファイルを `bash -n` で確認します。
 
 ```sh
-bash -n scripts/jtScratch
-bash -n scripts/install
-bash -n scripts/activate
-bash -n scripts/build
-bash -n scripts/start
+failed=0
+while IFS= read -r -d '' script; do
+    bash -n "$script" || failed=1
+done < <(find scripts -type f ! -name '*.ps1' -print0)
+[ "$failed" == 0 ]
+```
 
+PowerShellスクリプトも、PowerShellでアドオンディレクトリから構文を確認します。スクリプト自体は実行しません。
+
+```powershell
+$failed = $false
+Get-ChildItem -Path scripts -Filter '*.ps1' -File -Recurse | ForEach-Object {
+    $tokens = $null
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors)
+    if ($parseErrors) {
+        $parseErrors | ForEach-Object { Write-Error $_ }
+        $failed = $true
+    }
+}
+if ($failed) { throw 'PowerShell syntax check failed.' }
+```
+
+あわせて、変更内容を確認します。
+
+```sh
 git --no-pager diff --check
 git --no-pager diff -- addon/jtScratch
 ```
 
-環境準備や実ビルドは副作用が大きいため、リポジトリ取得、sudoによるAPT、nvm、npm、Wine設定を自動実行しないでください。
+環境準備や実ビルドは副作用が大きいため、リポジトリ取得、sudoによるAPT、nvm、npm、Wine設定を自動実行しません。
 動作確認が必要な場合は、既に準備済みのシェルとリポジトリを使用し、実行内容と副作用を事前に説明します。
 実行した場合も、外部リポジトリのソースや依存関係をこのアドオンの作業ディレクトリへ無断で変更しません。
 
@@ -121,5 +142,5 @@ git --no-pager diff -- addon/jtScratch
 - 対応する `scripts/<subcommand>` を追加する。
 - `README.md` に利用方法と副作用を記載する。
 - `jtScratch.code-workspace` がタスク変更に影響するか確認する。
-- ヘルプ、バージョン表示、エラー処理、ログ出力の規約を維持する。
-- この `AGENTS.md` のコマンド一覧とディレクトリ説明を更新する。
+- ヘルプ、バージョン表示、エラー処理、ログ出力の規約に従う。
+- この `AGENTS.md` のコマンド一覧は必ず更新し、ディレクトリ説明を含むその他の記載も必要に応じて更新する。

@@ -170,7 +170,7 @@ install_repository() {
     local name="$1"
     local url="$2"
     local repo_dir="$jt_scratch_repos/$name"
-    local log_file="$logs_dir/$name.log"
+    local log_file="$logs_dir/install_$name.log"
 
     # create or clear the log file and check for write permission
     : > "$log_file"
