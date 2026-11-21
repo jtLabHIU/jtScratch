@@ -35,6 +35,8 @@ Run `jtScratch build` from the activated shell to build `scratch-editor` with
 
 Run `jtScratch build desktop` to build an unsigned Windows NSIS x64 package
 of `scratch-desktop`. The package is written to `scratch-desktop/dist`.
+Build output is saved to `logs/build_scratch-editor.log` or
+`logs/build_scratch-desktop.log`, respectively, and replaced on each build.
 
 Run `jtScratch start` from the activated shell to start `scratch-editor` with
 `npm start`.

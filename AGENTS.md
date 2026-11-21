@@ -110,6 +110,7 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 - `jtScratch build` は `repos/scratch-editor` で `npm run build` を実行します。
 - `jtScratch start` は `repos/scratch-editor` で `npm start` を実行し、開発サーバーを起動します。
 - `jtScratch build desktop` は `repos/scratch-desktop` でクリーン、メディア取得、コンパイルを行い、Windows向けのNSIS x64パッケージを公開せずにビルドします。
+- ビルドログはリポジトリごとに `logs/build_<repository-name>.log` へ保存し、ビルドのたびに同じファイルを上書きします。
 - `s3h` のビルドは今後の課題とし、現時点では実行しません。
 
 ## ビルドと検証
@@ -140,11 +141,17 @@ Get-ChildItem -Path scripts -Filter '*.ps1' -File -Recurse | ForEach-Object {
 if ($failed) { throw 'PowerShell syntax check failed.' }
 ```
 
-あわせて、変更内容を確認します。
+アドオンディレクトリで回帰テストを実行します。テストは一時ディレクトリと模擬コマンドを使用します。
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+```
+
+あわせて、アドオンディレクトリで変更内容を確認します。
 
 ```sh
 git --no-pager diff --check
-git --no-pager diff -- addon/jtScratch
+git --no-pager diff
 ```
 
 環境準備や実ビルドは副作用が大きいため、リポジトリ取得、sudoによるAPT、nvm、npm、Wine設定を自動実行しません。

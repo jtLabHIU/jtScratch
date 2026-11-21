@@ -1,7 +1,5 @@
 # Helper script for installing and switching Node.js versions
 #   in Windows PowerShell
-$addon_name = "jtScratch"
-$script_name = "setup-windows-node.ps1"
 # Copyright (c) 2026 jtLab, Hokkaido Information University
 # Contextualized by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
 # Assisted by Copilot and Gemini
@@ -15,6 +13,9 @@ param (
     [string]$NodeVersion,
     [switch]$SwitchOnly
 )
+
+$addon_name = "jtScratch"
+$script_name = "setup-windows-node.ps1"
 
 # Stop on PowerShell errors so the catch block can report setup failures.
 $ErrorActionPreference = 'Stop'

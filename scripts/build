@@ -21,6 +21,30 @@ elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
     exit 0
 fi
 
+# Prepare the log for the selected repository.
+logs_dir="$addon_dir/logs"
+mkdir -p "$logs_dir"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not create log directory: $logs_dir" >&2
+    exit 1
+fi
+if [ "$1" == "desktop" ]; then
+    log_file="$logs_dir/build_scratch-desktop.log"
+else
+    log_file="$logs_dir/build_scratch-editor.log"
+fi
+: > "$log_file"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not write log file: $log_file" >&2
+    exit 1
+fi
+set -o pipefail
+echo "Build log: $log_file" | tee -a "$log_file"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not write log file: $log_file" >&2
+    exit 1
+fi
+
 # Build the Windows Scratch Desktop package when the desktop option is requested.
 if [ "$1" == "desktop" ]; then
     scratch_desktop_dir="$addon_dir/repos/scratch-desktop"
@@ -45,35 +69,39 @@ if [ "$1" == "desktop" ]; then
     fi
 
     # Remove generated files from a previous desktop build.
-    npm run clean
+    npm run clean 2>&1 | tee -a "$log_file"
     if [ "$?" != "0" ]; then
-        echo "Error: scratch-desktop clean failed." >&2
+        echo "Error: scratch-desktop clean failed. See $log_file" >&2
         exit 1
     fi
 
     # Fetch the media library needed by the desktop application.
-    npm run fetch
+    npm run fetch 2>&1 | tee -a "$log_file"
     if [ "$?" != "0" ]; then
-        echo "Error: scratch-desktop media library fetch failed." >&2
+        echo "Error: scratch-desktop media library fetch failed. See $log_file" >&2
         exit 1
     fi
 
     # Compile the desktop application before packaging it.
-    npm run compile
+    npm run compile 2>&1 | tee -a "$log_file"
     if [ "$?" != "0" ]; then
-        echo "Error: scratch-desktop compile failed." >&2
+        echo "Error: scratch-desktop compile failed. See $log_file" >&2
         exit 1
     fi
 
     # Package the Windows x64 application as an NSIS installer without publishing.
-    ./node_modules/.bin/electron-builder --win nsis --x64 --publish never
+    ./node_modules/.bin/electron-builder --win nsis --x64 --publish never 2>&1 | tee -a "$log_file"
     if [ "$?" != "0" ]; then
-        echo "Error: Windows Scratch Desktop build failed." >&2
+        echo "Error: Windows Scratch Desktop build failed. See $log_file" >&2
         exit 1
     fi
 
     # Confirm the desktop package was built successfully and skip the editor build.
-    echo "Windows Scratch Desktop build completed successfully."
+    echo "Windows Scratch Desktop build completed successfully." | tee -a "$log_file"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not write log file: $log_file" >&2
+        exit 1
+    fi
     exit 0
 fi
 
@@ -98,11 +126,15 @@ if [ "$?" != "0" ]; then
     exit 1
 fi
 
-npm run build
+npm run build 2>&1 | tee -a "$log_file"
 if [ "$?" != "0" ]; then
-    echo "Error: scratch-editor build failed." >&2
+    echo "Error: scratch-editor build failed. See $log_file" >&2
     exit 1
 fi
 
 # Confirm the editor build completed successfully.
-echo "scratch-editor build completed successfully."
+echo "scratch-editor build completed successfully." | tee -a "$log_file"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not write log file: $log_file" >&2
+    exit 1
+fi

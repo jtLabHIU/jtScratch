@@ -7,9 +7,11 @@ subcommand="install"
 # Released under the MIT license
 # https://opensource.org/licenses/mit-license.php
 #
+# Resolve the addon directory and script revision used by --version.
 addon_dir="$ETROBO_ADDON/$addon_name"
 ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/install`
 
+# Show usage or version information without installing.
 if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
     echo "usage: jtScratch install [</absolute/path/to/jtScratchRepos>]"
     exit 0
@@ -36,6 +38,7 @@ fi
 
 # Wine needs its 32-bit runtime to run Windows installer tools during cross-builds.
 if [ "$(dpkg --print-foreign-architectures | grep -Fx "i386")" == "" ]; then
+    echo "Enabling the i386 architecture for Windows Electron build tools ..."
     sudo dpkg --add-architecture i386
     if [ "$?" != "0" ]; then
         echo "Error: Could not enable the i386 architecture required by Wine." >&2
@@ -44,6 +47,7 @@ if [ "$(dpkg --print-foreign-architectures | grep -Fx "i386")" == "" ]; then
 fi
 
 # install required packages if not already installed
+echo "Updating APT package lists and installing tools needed to build the repositories ..."
 sudo apt update
 if [ "$?" != "0" ]; then
     echo "Error: Could not update the APT package lists." >&2
@@ -59,6 +63,10 @@ fi
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
     . "$NVM_DIR/nvm.sh"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not load nvm from $NVM_DIR/nvm.sh." >&2
+        exit 1
+    fi
 fi
 
 if [ "$(command -v nvm)" == "" ]; then
@@ -68,6 +76,7 @@ if [ "$(command -v nvm)" == "" ]; then
         exit 1
     fi
 
+    echo "Downloading the nvm installer to manage the required Node.js version ..."
     curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh" -o "$nvm_install_script"
     if [ "$?" != "0" ]; then
         rm -f "$nvm_install_script"
@@ -85,6 +94,10 @@ if [ "$(command -v nvm)" == "" ]; then
 
     if [ -s "$NVM_DIR/nvm.sh" ]; then
         . "$NVM_DIR/nvm.sh"
+        if [ "$?" != "0" ]; then
+            echo "Error: Could not load nvm from $NVM_DIR/nvm.sh." >&2
+            exit 1
+        fi
     fi
 fi
 
@@ -139,6 +152,7 @@ install_repository() {
     local url="$2"
     local repo_dir="$jt_scratch_repos/$name"
     local log_file="$logs_dir/install_$name.log"
+    local inside_work_tree
 
     # create or clear the log file and check for write permission
     : > "$log_file"
@@ -154,6 +168,11 @@ install_repository() {
             echo "Error: $repo_dir already exists and is not a Git repository. See $log_file" >&2
             exit 1
         fi
+        inside_work_tree="$(git -C "$repo_dir" rev-parse --is-inside-work-tree 2>/dev/null)"
+        if [ "$?" != "0" ] || [ "$inside_work_tree" != "true" ]; then
+            echo "Error: $repo_dir already exists and is not a valid Git repository. See $log_file" >&2
+            exit 1
+        fi
         echo "Using existing repository: $repo_dir" | tee -a "$log_file"
     else
         git clone "$url" "$repo_dir" 2>&1 | tee -a "$log_file"
@@ -163,6 +182,7 @@ install_repository() {
         fi
     fi
 
+    # Install and activate the editor's required Node.js version.
     if [ "$name" == "scratch-editor" ]; then
         if [ ! -f "$repo_dir/.nvmrc" ]; then
             echo "Error: Node.js version file not found: $repo_dir/.nvmrc. See $log_file" >&2
@@ -189,6 +209,7 @@ install_repository() {
         fi
     fi
 
+    # Install the desktop build tools outside npm.
     if [ "$name" == "scratch-desktop" ]; then
         echo "Installing packages required for Windows Electron builds (wine64, wine32:i386, mono-devel, libnss3) ..." | tee -a "$log_file"
         sudo apt install -y wine64 wine32:i386 mono-devel libnss3 2>&1 | tee -a "$log_file"
@@ -199,6 +220,7 @@ install_repository() {
     fi
 
     # install npm dependencies
+    echo "Installing npm dependencies for $name ..." | tee -a "$log_file"
     bash -c 'cd "$1" && npm install' jtScratch-install "$repo_dir" 2>&1 | tee -a "$log_file"
     if [ "$?" != "0" ]; then
         echo "Error: Could not install $name dependencies. See $log_file" >&2
@@ -209,10 +231,12 @@ install_repository() {
 echo "Repositories will be stored in: $jt_scratch_repos"
 echo "Logs will be stored in: $logs_dir"
 
+# Install the repositories in the specified order.
 install_repository "scratch-editor" "https://github.com/jtLabHIU/scratch-editor.git"
 install_repository "scratch-desktop" "https://github.com/jtLabHIU/scratch-desktop.git"
 install_repository "s3h" "https://github.com/jtLabHIU/s3h.git"
 
+# Set up Windows Node.js after the Linux installation.
 if [ "$ETROBO_OS" == "win" ]; then
     node_version="$(cat "$jt_scratch_repos/scratch-editor/.nvmrc")"
     if [ "$?" != "0" ] || [ "$node_version" == "" ]; then

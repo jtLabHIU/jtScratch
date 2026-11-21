@@ -6,9 +6,11 @@ addon_name="jtScratch"
 # Released under the MIT license
 # https://opensource.org/licenses/mit-license.php
 #
+# Resolve the addon directory and script revision used by --version.
 addon_dir="$ETROBO_ADDON/$addon_name"
 ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/jtScratch`
 
+# Show command information or dispatch the requested subcommand.
 if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
     echo "usage: jtScratch <command> [<params> ...] invoke subcommand of jtScratch addon"
     exit 0
@@ -24,7 +26,7 @@ else
     if [ -f "$addon_dir/scripts/$1" ]; then
         "$addon_dir/scripts/$1" "${@:2}"
     else
-        echo "Error: subcommand '$1' is not found in jtScratch addon."
+        echo "Error: subcommand '$1' is not found in jtScratch addon." >&2
         exit 1
     fi
 fi
