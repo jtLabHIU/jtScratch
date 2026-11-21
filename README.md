@@ -4,9 +4,10 @@ etrobo environment addon for jtScratch and jtS3H.
 ## Install repositories
 
 Run `jtScratch install [<absolute path to jtScratchRepos>]`. If the path is
-omitted, repositories are stored in `$HOME/jtScratchRepos`. The addon exposes
-that directory at `repos` through a symbolic link, so the filesystem containing
-the addon must support symbolic links (for example, NTFS).
+omitted, repositories are stored in `$ETROBO_USERPROFILE/jtScratchRepos`. The
+addon exposes that directory at `repos` through a symbolic link, so the
+filesystem containing the addon must support symbolic links (for example,
+NTFS).
 
 The installer clones `scratch-editor`, `scratch-desktop`, and then `s3h` when
 their directories do not already exist. Existing Git repositories are reused
@@ -17,14 +18,17 @@ Git, curl, and the build tools required by native npm dependencies
 (`build-essential` and `python3`). For scratch-desktop Windows Electron builds,
 the installer enables the i386 architecture and installs `wine64`, `wine32:i386`,
 `mono-devel`, and `libnss3`. The Wine runtimes are needed to run Windows
-installer tooling during cross-builds. Logs are written separately to
-`logs/scratch-editor.log`, `logs/scratch-desktop.log`, and `logs/s3h.log`.
+installer tooling during cross-builds. In WSL, it also installs nvm-windows
+through winget and activates the Node.js version from `.nvmrc` for Windows-side
+debugging. Logs are written separately to `logs/scratch-editor.log`,
+`logs/scratch-desktop.log`, `logs/s3h.log`, and `logs/windows-node.log`.
 
 Opening `jtScratch.code-workspace` starts an integrated terminal and runs
 `jtScratch activate`. This activates the Node.js version specified by
-`scratch-editor/.nvmrc` with nvm, then leaves an interactive shell open in the
-jtScratch addon directory. VS Code may ask permission to run the automatic
-workspace task the first time.
+`scratch-editor/.nvmrc` with nvm on WSL and nvm-windows. If the Windows
+version is not installed, it runs `jtScratch install` to prepare it. It then
+leaves an interactive shell open in the jtScratch addon directory. VS Code may
+ask permission to run the automatic workspace task the first time.
 
 Run `jtScratch build` from the activated shell to build `scratch-editor` with
 `npm run build`.

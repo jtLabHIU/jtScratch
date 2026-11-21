@@ -29,7 +29,10 @@ fi
 #   ディレクトリに配置されます。この時、<jtScratchRepos>は絶対パスで指定する必要があり、
 #   かつ、reposディレクトリはNTFSなどシンボリックリンクをサポートする
 #   ファイルシステムである必要があるので、その注意をユーザーに促す必要があります。
-# - <jtScratchRepos>が指定されない場合は、デフォルトで $HOME/jtScratchRepos が使用されます。
+# - <jtScratchRepos>が指定されない場合は、デフォルトで $ETROBO_USERPROFILE/jtScratchRepos が
+#   使用されます。$ETROBO_USERPROFILEは、よほどのことがない限り/mnt/c/Usersからはじまる
+#   Windowsのカレントユーザーのプロファイルの場所を指しています。
+#   Windows側で処理を行う際はこれをWindowsのパスに変換して利用します。
 # - <jtScratchRepos>配下に既に同名のディレクトリが存在する場合は、
 #   git cloneは行わず、既存のリポジトリを使用します。
 # - 最初にscratch-editor、続いてscratch-desktop、s3hの順でリポジトリを取得し、ビルドや実行に必要なパッケージなどを
@@ -39,12 +42,25 @@ fi
 #   nvmを使用して適切なNode.jsバージョンを、必要であればインストールして利用可能にしてください。
 # - scratch-desktopはWindows向けのElectronビルドを行うので、
 #   もしもnpmでインストールされるパッケージ以外に必要なものがあればインストールしてください。
+# - Windowsでデバッグを行うには、Windows側にもNode.jsの実行環境が必要と思われます。
+#   そちらをインストールするためのPowerShellスクリプトを別途用意し、
+#   WSL側のインストールが終わった後でそれを呼び出す形でインストールします。
+#   Node.jsのバージョン管理にはnvmを使用してください。
 # - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
 # - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
 #
 
 # determine the jtScratchRepos directory
-jt_scratch_repos="${1:-$HOME/jtScratchRepos}"
+if [ "$#" -gt 0 ]; then
+    jt_scratch_repos="$1"
+else
+    if [ -z "$ETROBO_USERPROFILE" ]; then
+        echo "Error: ETROBO_USERPROFILE is not set. Specify an absolute jtScratchRepos path." >&2
+        exit 1
+    fi
+    jt_scratch_repos="$ETROBO_USERPROFILE/jtScratchRepos"
+fi
+
 if [ "$(printf '%s\n' "$jt_scratch_repos" | sed 's|^/||')" == "$jt_scratch_repos" ]; then
     echo "Error: jtScratchRepos must be an absolute path: $jt_scratch_repos" >&2
     exit 1
@@ -228,5 +244,43 @@ echo "Logs will be stored in: $logs_dir"
 install_repository "scratch-editor" "https://github.com/jtLabHIU/scratch-editor.git"
 install_repository "scratch-desktop" "https://github.com/jtLabHIU/scratch-desktop.git"
 install_repository "s3h" "https://github.com/jtLabHIU/s3h.git"
+
+if [ "$ETROBO_OS" == "win" ]; then
+    node_version="$(cat "$jt_scratch_repos/scratch-editor/.nvmrc")"
+    if [ "$?" != "0" ] || [ "$node_version" == "" ]; then
+        echo "Error: Could not read the Windows Node.js version from $jt_scratch_repos/scratch-editor/.nvmrc" >&2
+        exit 1
+    fi
+
+    if [ "$(command -v powershell.exe)" == "" ] || [ "$(command -v wslpath)" == "" ]; then
+        echo "Error: powershell.exe and wslpath are required to install Windows Node.js." >&2
+        exit 1
+    fi
+
+    powershell_script="$addon_dir/scripts/setup-windows-node.ps1"
+    if [ ! -f "$powershell_script" ]; then
+        echo "Error: Windows Node.js setup script not found: $powershell_script" >&2
+        exit 1
+    fi
+    powershell_script_windows="$(wslpath -w "$powershell_script")"
+    if [ "$?" != "0" ] || [ "$powershell_script_windows" == "" ]; then
+        echo "Error: Could not convert the Windows Node.js installer path." >&2
+        exit 1
+    fi
+
+    windows_node_log="$logs_dir/windows-node.log"
+    : > "$windows_node_log"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not write Windows Node.js installation log: $windows_node_log" >&2
+        exit 1
+    fi
+
+    echo "Installing Windows Node.js $node_version with nvm-windows ..." | tee -a "$windows_node_log"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$powershell_script_windows" -NodeVersion "$node_version" 2>&1 | tee -a "$windows_node_log"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not install Windows Node.js $node_version. See $windows_node_log" >&2
+        exit 1
+    fi
+fi
 
 echo "jtScratch repositories and dependencies installed successfully."

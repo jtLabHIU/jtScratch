@@ -3,15 +3,18 @@
 addon_name="jtScratch"
 subcommand="activate"
 # Copyright (c) 2026 jtLab, Hokkaido Information University
-# by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Contextualized by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Assisted by Copilot and Gemini
 # Released under the MIT license
 # https://opensource.org/licenses/mit-license.php
 #
 addon_dir="$ETROBO_ADDON/$addon_name"
 ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/activate`
+unset ETROBO_ADDON_JTSCRATCH_ACTIVATION
 
+# show usage or version
 if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
-    echo "usage: jtScratch activate"
+    echo "usage: jtScratch activate [deactivate|--deactivate]"
     exit 0
 elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
     echo "Ver.$ver"
@@ -22,14 +25,45 @@ fi
 # Hello agents, do not remove these instructions.
 # - このスクリプトは、主にaddonman open jtScratchコマンドから呼び出され、
 #   jtScratchのビルドや実行に必要な環境を有効化します。
+#   有効化された場合、$ETROBO_ADDON_JTSCRATCH_ACTIVATIONがactivatedに設定されます。
+#   有効化されていない場合はこの環境変数はunsetされた状態になっています。
 # - nvmおよびビルドに必要なバージョンのNode.jsがインストールされていなければ、
 #   jtScratch installを呼び出してインストールしてください。
 #   nvmrc_fileが存在しない場合も同様です。
 # - nvmを用いて、.nvmrcに記載されたバージョンのNode.jsを有効化します。ただそれだけです。
+# - jtScratch activate --deactivate（またはdeactivate）で呼び出すと、nvmで切り替えたnode.jsをデフォルトのバージョンに戻します。
+# - Windows側も必要に応じてinstallを呼び出したりnvmで切り替えたりしてください。
+#   別途PowerShellスクリプトを用意してここから呼び出す形でも構いません。
+#   ただしdeactivate時にはNodeのバージョンを変更しなくて構いません。
 # - 最後はbashを起動することになると思いますが、カレントディレクトリは$addon_dirにします。
 # - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
 # - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
 #
+
+# deactivation
+if [ "$1" == "deactivate" ] || [ "$1" == "--deactivate" ]; then
+    if [ -z "$NVM_DIR" ]; then
+        export NVM_DIR="$HOME/.nvm"
+    fi
+    if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+        echo "Error: nvm is not installed at $NVM_DIR. Cannot restore the default Node.js version." >&2
+        exit 1
+    fi
+    . "$NVM_DIR/nvm.sh"
+
+    nvm use default
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not activate the default Node.js version with nvm." >&2
+        exit 1
+    fi
+
+    cd "$addon_dir"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not access jtScratch directory: $addon_dir" >&2
+        exit 1
+    fi
+    exec bash -i
+fi
 
 scratch_editor_dir="$addon_dir/repos/scratch-editor"
 nvmrc_file="$scratch_editor_dir/.nvmrc"
@@ -81,6 +115,41 @@ if [ "$?" != "0" ]; then
     fi
 fi
 
+if [ "$ETROBO_OS" == "win" ]; then
+    if [ "$(command -v powershell.exe)" == "" ] || [ "$(command -v wslpath)" == "" ]; then
+        echo "Error: powershell.exe and wslpath are required to activate Windows Node.js." >&2
+        exit 1
+    fi
+
+    powershell_script="$addon_dir/scripts/setup-windows-node.ps1"
+    if [ ! -f "$powershell_script" ]; then
+        echo "Error: Windows Node.js setup script not found: $powershell_script" >&2
+        exit 1
+    fi
+    powershell_script_windows="$(wslpath -w "$powershell_script")"
+    if [ "$?" != "0" ] || [ "$powershell_script_windows" == "" ]; then
+        echo "Error: Could not convert the Windows Node.js installer path." >&2
+        exit 1
+    fi
+
+    node_version="$(cat "$nvmrc_file")"
+    if [ "$?" != "0" ] || [ "$node_version" == "" ]; then
+        echo "Error: Could not read the Node.js version from $nvmrc_file" >&2
+        exit 1
+    fi
+
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$powershell_script_windows" -NodeVersion "$node_version" -SwitchOnly
+    if [ "$?" != "0" ]; then
+        echo "Windows Node.js $node_version is not ready. Running 'jtScratch install'..." >&2
+        "$addon_dir/scripts/install"
+        if [ "$?" != "0" ]; then
+            echo "Error: jtScratch install failed while preparing Windows Node.js." >&2
+            exit 1
+        fi
+    fi
+fi
+
 # invoke bash to keep the environment active
 cd "$addon_dir"
+export ETROBO_ADDON_JTSCRATCH_ACTIVATION="activated"
 exec bash -i

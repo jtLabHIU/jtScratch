@@ -3,13 +3,16 @@
 addon_name="jtScratch"
 subcommand="build"
 # Copyright (c) 2026 jtLab, Hokkaido Information University
-# by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Contextualized by TANAHASHI, Jiro(aka jtFuruhata) <jt@do-johodai.ac.jp>
+# Assisted by Copilot and Gemini
 # Released under the MIT license
 # https://opensource.org/licenses/mit-license.php
 #
+# Resolve the addon directory and script revision used by --version.
 addon_dir="$ETROBO_ADDON/$addon_name"
 ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/build`
 
+# Show usage or version information without building.
 if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
     echo "usage: jtScratch build [desktop]"
     exit 0
@@ -29,53 +32,63 @@ fi
 # - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
 #
 
+# Build the Windows Scratch Desktop package when the desktop option is requested.
 if [ "$1" == "desktop" ]; then
     scratch_desktop_dir="$addon_dir/repos/scratch-desktop"
 
+    # Verify the desktop repository is available before running its build.
     if [ ! -f "$scratch_desktop_dir/package.json" ]; then
         echo "Error: scratch-desktop repository not found at $scratch_desktop_dir" >&2
         exit 1
     fi
 
+    # Require npm, which is made available by activating the jtScratch environment.
     if [ "$(command -v npm)" == "" ]; then
         echo "Error: npm is not available. Run 'jtScratch activate' first." >&2
         exit 1
     fi
 
+    # Enter the desktop repository before running its build steps.
     cd "$scratch_desktop_dir"
     if [ "$?" != "0" ]; then
         echo "Error: Could not access scratch-desktop directory: $scratch_desktop_dir" >&2
         exit 1
     fi
 
+    # Remove generated files from a previous desktop build.
     npm run clean
     if [ "$?" != "0" ]; then
         echo "Error: scratch-desktop clean failed." >&2
         exit 1
     fi
 
+    # Fetch the media library needed by the desktop application.
     npm run fetch
     if [ "$?" != "0" ]; then
         echo "Error: scratch-desktop media library fetch failed." >&2
         exit 1
     fi
 
+    # Compile the desktop application before packaging it.
     npm run compile
     if [ "$?" != "0" ]; then
         echo "Error: scratch-desktop compile failed." >&2
         exit 1
     fi
 
+    # Package the Windows x64 application as an NSIS installer without publishing.
     ./node_modules/.bin/electron-builder --win nsis --x64 --publish never
     if [ "$?" != "0" ]; then
         echo "Error: Windows Scratch Desktop build failed." >&2
         exit 1
     fi
 
+    # Confirm the desktop package was built successfully and skip the editor build.
     echo "Windows Scratch Desktop build completed successfully."
     exit 0
 fi
 
+# Build the scratch-editor repository when the desktop option was not requested.
 scratch_editor_dir="$addon_dir/repos/scratch-editor"
 
 if [ ! -f "$scratch_editor_dir/package.json" ]; then
@@ -83,11 +96,13 @@ if [ ! -f "$scratch_editor_dir/package.json" ]; then
     exit 1
 fi
 
+# Require npm, which is made available by activating the jtScratch environment.
 if [ "$(command -v npm)" == "" ]; then
     echo "Error: npm is not available. Run 'jtScratch activate' first." >&2
     exit 1
 fi
 
+# Enter the editor repository and run its production build.
 cd "$scratch_editor_dir"
 if [ "$?" != "0" ]; then
     echo "Error: Could not access scratch-editor directory: $scratch_editor_dir" >&2
@@ -100,4 +115,5 @@ if [ "$?" != "0" ]; then
     exit 1
 fi
 
+# Confirm the editor build completed successfully.
 echo "scratch-editor build completed successfully."
