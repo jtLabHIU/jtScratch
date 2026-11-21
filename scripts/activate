@@ -21,25 +21,6 @@ elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
     exit 0
 fi
 
-#
-# Hello agents, do not remove these instructions.
-# - このスクリプトは、主にaddonman open jtScratchコマンドから呼び出され、
-#   jtScratchのビルドや実行に必要な環境を有効化します。
-#   有効化された場合、$ETROBO_ADDON_JTSCRATCH_ACTIVATIONがactivatedに設定されます。
-#   有効化されていない場合はこの環境変数はunsetされた状態になっています。
-# - nvmおよびビルドに必要なバージョンのNode.jsがインストールされていなければ、
-#   jtScratch installを呼び出してインストールしてください。
-#   nvmrc_fileが存在しない場合も同様です。
-# - nvmを用いて、.nvmrcに記載されたバージョンのNode.jsを有効化します。ただそれだけです。
-# - jtScratch activate --deactivate（またはdeactivate）で呼び出すと、nvmで切り替えたnode.jsをデフォルトのバージョンに戻します。
-# - Windows側も必要に応じてinstallを呼び出したりnvmで切り替えたりしてください。
-#   別途PowerShellスクリプトを用意してここから呼び出す形でも構いません。
-#   ただしdeactivate時にはNodeのバージョンを変更しなくて構いません。
-# - 最後はbashを起動することになると思いますが、カレントディレクトリは$addon_dirにします。
-# - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
-# - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
-#
-
 # deactivation
 if [ "$1" == "deactivate" ] || [ "$1" == "--deactivate" ]; then
     if [ -z "$NVM_DIR" ]; then

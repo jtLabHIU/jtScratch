@@ -21,17 +21,6 @@ elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
     exit 0
 fi
 
-#
-# Hello agents, do not remove these instructions.
-# - このスクリプトは、scrutch-editorとs3hのビルドを行います。が、s3hのビルドは一旦しないことにします。
-# - scratch-editorは、repos/scratch-editorディレクトリ配下にあるので、
-#   そこに移動してnpm run buildを実行します。
-# - desktopオプションを付け、jtScratch build desktopのような形で呼び出すと、
-#   scratch-desktopディレクトリを用いてWindows版Scratch Desktopをビルドします。
-# - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
-# - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
-#
-
 # Build the Windows Scratch Desktop package when the desktop option is requested.
 if [ "$1" == "desktop" ]; then
     scratch_desktop_dir="$addon_dir/repos/scratch-desktop"

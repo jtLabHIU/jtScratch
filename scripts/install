@@ -18,38 +18,6 @@ elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
     exit 0
 fi
 
-#
-# Hello agents, do not remove these instructions.
-# - このスクリプトは、scratch-editorとscratch-desktop、およびs3hリポジトリを取得します。
-# - scratch-editorは、 https://github.com/jtLabHIU/scratch-editor.git にあります。
-# - scratch-desktopは、 https://github.com/jtLabHIU/scratch-desktop.git にあります。
-# - s3hは、 https://github.com/jtLabHIU/s3h.git にあります。
-# - これらは $addon_dir/repos ディレクトリ配下からアクセスされますが、
-#   このreposはシンボリックリンクを配置し、実際のreposは<jtScratchRepos>で指定された
-#   ディレクトリに配置されます。この時、<jtScratchRepos>は絶対パスで指定する必要があり、
-#   かつ、reposディレクトリはNTFSなどシンボリックリンクをサポートする
-#   ファイルシステムである必要があるので、その注意をユーザーに促す必要があります。
-# - <jtScratchRepos>が指定されない場合は、デフォルトで $ETROBO_USERPROFILE/jtScratchRepos が
-#   使用されます。$ETROBO_USERPROFILEは、よほどのことがない限り/mnt/c/Usersからはじまる
-#   Windowsのカレントユーザーのプロファイルの場所を指しています。
-#   Windows側で処理を行う際はこれをWindowsのパスに変換して利用します。
-# - <jtScratchRepos>配下に既に同名のディレクトリが存在する場合は、
-#   git cloneは行わず、既存のリポジトリを使用します。
-# - 最初にscratch-editor、続いてscratch-desktop、s3hの順でリポジトリを取得し、ビルドや実行に必要なパッケージなどを
-#   インストールしますが、インストールログはそれぞれ別々に
-#   $addon_dir/logs ディレクトリ配下に保存されます。
-# - scratch-editorはNode.js上で動作するので、.nvmrcを参照し、
-#   nvmを使用して適切なNode.jsバージョンを、必要であればインストールして利用可能にしてください。
-# - scratch-desktopはWindows向けのElectronビルドを行うので、
-#   もしもnpmでインストールされるパッケージ以外に必要なものがあればインストールしてください。
-# - Windowsでデバッグを行うには、Windows側にもNode.jsの実行環境が必要と思われます。
-#   そちらをインストールするためのPowerShellスクリプトを別途用意し、
-#   WSL側のインストールが終わった後でそれを呼び出す形でインストールします。
-#   Node.jsのバージョン管理にはnvmを使用してください。
-# - コーディングの際には、多少長くなってもなるべく人間が理解しやすいコードを生成してください。
-# - if文は、[]を省略しないで、また [ == ] のような表記で統一してください。
-#
-
 # determine the jtScratchRepos directory
 if [ "$#" -gt 0 ]; then
     jt_scratch_repos="$1"

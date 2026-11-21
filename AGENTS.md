@@ -22,9 +22,9 @@
 
 内部スクリプトは、外部リポジトリを次の固定パスから参照します。これらの実際のクローン先は `repos/` のリンク先であり、ユーザーが手作業で配置するのではなく、通常は `jtScratch install` が準備します。
 
-- `repos/scratch-editor`
-- `repos/scratch-desktop`
-- `repos/s3h`
+- `repos/scratch-editor`: https://github.com/jtLabHIU/scratch-editor.git
+- `repos/scratch-desktop`: https://github.com/jtLabHIU/scratch-desktop.git
+- `repos/s3h`: https://github.com/jtLabHIU/s3h.git
 
 実際のクローン先は `jtScratch install` の引数、または既定の `$ETROBO_USERPROFILE/jtScratchRepos` で決まります。Windows側からもリポジトリを使う処理があるため、Windows環境ではクローン先をWindowsファイルシステムからアクセスできる場所にします。
 
@@ -87,14 +87,30 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 ## インストール仕様
 
 - リポジトリ取得順は `scratch-editor`、`scratch-desktop`、`s3h` です。
-- `scripts/install` が実際のクローン先を準備し、`repos/` のシンボリックリンクを作成します。リンクを含むファイルシステムはシンボリックリンクをサポートする必要があります。
+- `scripts/install` が実際のクローン先を準備し、`repos/` のシンボリックリンクを作成します。リンクを配置するファイルシステムはNTFSなどシンボリックリンクをサポートする必要があることをユーザーに案内します。
 - 対象ディレクトリが存在する場合は再cloneせず、Gitリポジトリとして利用します。
 - 既存ディレクトリがGitリポジトリでない場合は、誤った上書きをせずエラーにします。
 - 各リポジトリのログは別々に `logs/install_<repository-name>.log`へ保存します。
 - ビルドに必要な基本パッケージは、エージェントが必要に応じて判断します。
 - Windows Electronビルドに必要なパッケージも、エージェントが必要に応じて判断します。
-- WSLでは、Linux側とWindows側のnvm/Node.js環境を必要に応じて準備します。
+- WSLでは、Linux側のnvm/Node.js環境を準備し、そのインストール完了後、Windows側でのデバッグに必要なNode.js環境を別途用意したPowerShellスクリプトで準備します。Node.jsのバージョン管理にはnvmを使用します。
 - インストール中に外部通信や管理者権限が必要な処理を行う場合は、その目的をユーザーに示します。失敗した場合は、原因と対処方法、または確認すべきログを案内します。
+
+## 環境有効化の仕様
+
+- `scripts/activate` は主に `addonman open jtScratch` から呼び出され、ビルドや実行に必要な環境を有効化します。
+- 有効化されたシェルでは `ETROBO_ADDON_JTSCRATCH_ACTIVATION` を `activated` に設定し、有効化されていない場合は未設定にします。
+- nvm、必要なNode.jsバージョン、または `repos/scratch-editor/.nvmrc` が存在しない場合は、`jtScratch install` を呼び出して準備します。
+- Windows側も必要に応じてnvmでNode.jsのバージョンを切り替え、環境が準備されていない場合は `jtScratch install` を呼び出します。Windows側の処理には別途PowerShellスクリプトを使用できます。
+- `jtScratch activate deactivate` または `jtScratch activate --deactivate` では、Linux側のNode.jsをnvmのデフォルトバージョンに戻します。Windows側のNode.jsバージョンは変更しなくても構いません。
+- 有効化または無効化の最後に対話Bashを起動し、カレントディレクトリをアドオンディレクトリにします。
+
+## ビルド仕様
+
+- `jtScratch build` は `repos/scratch-editor` で `npm run build` を実行します。
+- `jtScratch start` は `repos/scratch-editor` で `npm start` を実行し、開発サーバーを起動します。
+- `jtScratch build desktop` は `repos/scratch-desktop` でクリーン、メディア取得、コンパイルを行い、Windows向けのNSIS x64パッケージを公開せずにビルドします。
+- `s3h` のビルドは今後の課題とし、現時点では実行しません。
 
 ## ビルドと検証
 
