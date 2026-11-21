@@ -23,10 +23,19 @@ through winget and activates the Node.js version from `.nvmrc` for Windows-side
 debugging. Logs are written separately to `logs/install_scratch-editor.log`,
 `logs/install_scratch-desktop.log`, `logs/install_s3h.log`, and `logs/windows-node.log`.
 
+`jtScratch install --no-clone` prepares available tools and existing
+repositories without cloning missing ones. If repositories or `.nvmrc` are
+missing, it asks you to run `jtScratch install` with the repository location.
+When the Node.js version cannot be determined, Node.js and npm dependencies
+are not installed. An existing `repos` link is used when no location is
+specified; an incomplete setup does not create a new link.
+
 Opening `jtScratch.code-workspace` starts an integrated terminal and runs
 `jtScratch activate`. This activates the Node.js version specified by
 `scratch-editor/.nvmrc` with nvm on WSL and nvm-windows. If the Windows
-version is not installed, it runs `jtScratch install` to prepare it. It then
+version is not installed, it runs `jtScratch install --no-clone` to prepare it.
+Activation through `addonman open jtScratch shell` or `terminal` also uses
+`--no-clone`; directly running `jtScratch activate` allows cloning. It then
 leaves an interactive shell open in the jtScratch addon directory. VS Code may
 ask permission to run the automatic workspace task the first time.
 

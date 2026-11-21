@@ -22,6 +22,15 @@ elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
     exit 0
 fi
 
+# Select the installation mode for addonman and workspace activation.
+install_args=()
+unset no_clone
+if [ "$ETROBO_ADDON_ACTIVATION_SOURCE" == "addonman" ] || [ "$ETROBO_ADDON_ACTIVATION_SOURCE" == "workspace" ]; then
+    no_clone="no-clone"
+    install_args+=(--no-clone)
+fi
+unset ETROBO_ADDON_ACTIVATION_SOURCE
+
 # deactivation
 if [ "$1" == "deactivate" ] || [ "$1" == "--deactivate" ]; then
     if [ -z "$NVM_DIR" ]; then
@@ -54,10 +63,23 @@ fi
 scratch_editor_dir="$addon_dir/repos/scratch-editor"
 nvmrc_file="$scratch_editor_dir/.nvmrc"
 
+# Check all repositories before an automatic no-clone installation.
+unset repositories_missing
+if [ -n "$no_clone" ]; then
+    for repository in scratch-editor scratch-desktop s3h; do
+        repo_dir="$addon_dir/repos/$repository"
+        if [ ! -d "$repo_dir" ] || { [ ! -d "$repo_dir/.git" ] && [ ! -f "$repo_dir/.git" ]; }; then
+            repositories_missing="missing"
+        elif [ "$(git -C "$repo_dir" rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]; then
+            repositories_missing="missing"
+        fi
+    done
+fi
+
 # prepare the Git repository and Node.js environment if they are missing
-if [ ! -d "$scratch_editor_dir" ] || [ ! -f "$nvmrc_file" ]; then
-    echo "a .nvmrc file is missing. Running 'jtScratch install'..." >&2
-    "$addon_dir/scripts/install"
+if [ ! -d "$scratch_editor_dir" ] || [ ! -f "$nvmrc_file" ] || [ -n "$repositories_missing" ]; then
+    echo "Repository or Node.js version file is missing. Preparing the environment..." >&2
+    "$addon_dir/scripts/install" "${install_args[@]}"
     if [ "$?" != "0" ]; then
         echo "Error: jtScratch install failed while preparing the environment." >&2
         exit 1
@@ -75,7 +97,7 @@ if [ -z "$NVM_DIR" ]; then
     export NVM_DIR="$HOME/.nvm"
 fi
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-    "$addon_dir/scripts/install"
+    "$addon_dir/scripts/install" "${install_args[@]}"
     if [ "$?" != "0" ]; then
         echo "Error: jtScratch install failed while preparing the environment." >&2
         exit 1
@@ -100,7 +122,7 @@ fi
 nvm use
 if [ "$?" != "0" ]; then
     echo "Required Node.js version is not installed or could not be activated. Running 'jtScratch install'..." >&2
-    "$addon_dir/scripts/install"
+    "$addon_dir/scripts/install" "${install_args[@]}"
     if [ "$?" != "0" ]; then
         echo "Error: jtScratch install failed while preparing the environment." >&2
         exit 1
@@ -144,7 +166,7 @@ if [ "$ETROBO_OS" == "win" ]; then
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$powershell_script_windows" -NodeVersion "$node_version" -SwitchOnly
     if [ "$?" != "0" ]; then
         echo "Windows Node.js $node_version is not ready. Running 'jtScratch install'..." >&2
-        "$addon_dir/scripts/install"
+        "$addon_dir/scripts/install" "${install_args[@]}"
         if [ "$?" != "0" ]; then
             echo "Error: jtScratch install failed while preparing Windows Node.js." >&2
             exit 1

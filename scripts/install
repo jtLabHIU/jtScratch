@@ -13,16 +13,34 @@ ver=`git -C "$addon_dir" log -1 --date=short --format="%cd.%h" -- scripts/instal
 
 # Show usage or version information without installing.
 if [ "$1" == "--help" ] || [ "$1" == "usage" ]; then
-    echo "usage: jtScratch install [</absolute/path/to/jtScratchRepos>]"
+    echo "usage: jtScratch install [--no-clone] [</absolute/path/to/jtScratchRepos>]"
     exit 0
 elif [ "$1" == "--version" ] || [ "$1" == "version" ] || [ "$1" == "ver" ]; then
     echo "Ver.$ver"
     exit 0
 fi
 
-# determine the jtScratchRepos directory
+# Select whether missing repositories may be cloned.
+unset no_clone
+if [ "$1" == "--no-clone" ]; then
+    no_clone="no-clone"
+    shift
+fi
+if [ "$#" -gt 1 ] || { [ "$#" -gt 0 ] && [ "${1#--}" != "$1" ]; }; then
+    echo "Error: Invalid install arguments. Use: jtScratch install [--no-clone] [</absolute/path/to/jtScratchRepos>]" >&2
+    exit 1
+fi
+
+# Resolve and validate the repository location before changing the environment.
+repos_link="$addon_dir/repos"
 if [ "$#" -gt 0 ]; then
     jt_scratch_repos="$1"
+elif [ -n "$no_clone" ] && [ -L "$repos_link" ]; then
+    jt_scratch_repos="$(realpath -m -- "$repos_link")"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not resolve repository link: $repos_link" >&2
+        exit 1
+    fi
 else
     if [ -z "$ETROBO_USERPROFILE" ]; then
         echo "Error: ETROBO_USERPROFILE is not set. Specify an absolute jtScratchRepos path." >&2
@@ -31,8 +49,31 @@ else
     jt_scratch_repos="$ETROBO_USERPROFILE/jtScratchRepos"
 fi
 
-if [ "$(printf '%s\n' "$jt_scratch_repos" | sed 's|^/||')" == "$jt_scratch_repos" ]; then
+if [ "${jt_scratch_repos#/}" == "$jt_scratch_repos" ]; then
     echo "Error: jtScratchRepos must be an absolute path: $jt_scratch_repos" >&2
+    exit 1
+fi
+jt_scratch_repos="$(realpath -m -- "$jt_scratch_repos")"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not resolve jtScratchRepos path." >&2
+    exit 1
+fi
+if [ -e "$jt_scratch_repos" ] && [ ! -d "$jt_scratch_repos" ]; then
+    echo "Error: jtScratchRepos is not a directory: $jt_scratch_repos" >&2
+    exit 1
+fi
+if [ -L "$repos_link" ]; then
+    existing_repos="$(realpath -m -- "$repos_link")"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not resolve repository link: $repos_link" >&2
+        exit 1
+    fi
+    if [ "$existing_repos" != "$jt_scratch_repos" ]; then
+        echo "Error: $repos_link already points to a different directory." >&2
+        exit 1
+    fi
+elif [ -e "$repos_link" ]; then
+    echo "Error: $repos_link already exists and is not a symbolic link. Move it before installing." >&2
     exit 1
 fi
 
@@ -106,29 +147,24 @@ if [ "$(command -v nvm)" == "" ]; then
     exit 1
 fi
 
-# prepare the jtScratchRepos directory
-mkdir -p "$jt_scratch_repos"
-if [ "$?" != "0" ]; then
-    echo "Error: Could not create jtScratchRepos directory: $jt_scratch_repos" >&2
-    exit 1
-fi
-jt_scratch_repos="$(cd "$jt_scratch_repos" && pwd -P)"
-if [ "$?" != "0" ]; then
-    echo "Error: Could not access jtScratchRepos directory." >&2
-    exit 1
+# Prepare the repository directory only when cloning is permitted.
+if [ -z "$no_clone" ]; then
+    mkdir -p "$jt_scratch_repos"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not create jtScratchRepos directory: $jt_scratch_repos" >&2
+        exit 1
+    fi
 fi
 
 # create symbolic link for repos
-repos_link="$addon_dir/repos"
 echo "Note: the filesystem containing $repos_link must support symbolic links (e.g. NTFS)."
 if [ -L "$repos_link" ]; then
-    if [ "$(readlink "$repos_link")" != "$jt_scratch_repos" ]; then
-        echo "Error: $repos_link already points to a different directory." >&2
-        exit 1
-    fi
+    echo "Using existing repository link: $repos_link"
 elif [ -e "$repos_link" ]; then
     echo "Error: $repos_link already exists and is not a symbolic link. Move it before installing." >&2
     exit 1
+elif [ -n "$no_clone" ]; then
+    echo "The repository link will be created after the existing repositories are prepared."
 else
     ln -s "$jt_scratch_repos" "$repos_link"
     if [ "$?" != "0" ]; then
@@ -147,6 +183,8 @@ fi
 
 # function to install a repository
 set -o pipefail
+unset incomplete
+unset node_ready
 install_repository() {
     local name="$1"
     local url="$2"
@@ -155,7 +193,11 @@ install_repository() {
     local inside_work_tree
 
     # create or clear the log file and check for write permission
-    : > "$log_file"
+    if [ "$name" == "scratch-desktop" ]; then
+        : >> "$log_file"
+    else
+        : > "$log_file"
+    fi
     if [ "$?" != "0" ]; then
         echo "Error: Could not write log file: $log_file" >&2
         exit 1
@@ -174,6 +216,10 @@ install_repository() {
             exit 1
         fi
         echo "Using existing repository: $repo_dir" | tee -a "$log_file"
+    elif [ -n "$no_clone" ]; then
+        echo "Skipping missing repository: $repo_dir" | tee -a "$log_file"
+        incomplete="incomplete"
+        return
     else
         git clone "$url" "$repo_dir" 2>&1 | tee -a "$log_file"
         if [ "$?" != "0" ]; then
@@ -185,13 +231,27 @@ install_repository() {
     # Install and activate the editor's required Node.js version.
     if [ "$name" == "scratch-editor" ]; then
         if [ ! -f "$repo_dir/.nvmrc" ]; then
+            if [ -n "$no_clone" ]; then
+                echo "Node.js version file not found: $repo_dir/.nvmrc. Restore it before retrying." >&2
+                incomplete="incomplete"
+                return
+            fi
             echo "Error: Node.js version file not found: $repo_dir/.nvmrc. See $log_file" >&2
             exit 1
         fi
 
         node_version="$(cat "$repo_dir/.nvmrc")"
-        if [ "$?" != "0" ] || [ "$node_version" == "" ]; then
+        if [ "$?" != "0" ]; then
             echo "Error: Could not read a Node.js version from $repo_dir/.nvmrc. See $log_file" >&2
+            exit 1
+        fi
+        if [ "$node_version" == "" ]; then
+            if [ -n "$no_clone" ]; then
+                echo "Node.js version file is empty: $repo_dir/.nvmrc. Restore it before retrying." >&2
+                incomplete="incomplete"
+                return
+            fi
+            echo "Error: Node.js version file is empty: $repo_dir/.nvmrc. See $log_file" >&2
             exit 1
         fi
 
@@ -207,16 +267,13 @@ install_repository() {
             echo "Error: Could not activate Node.js $node_version. See $log_file" >&2
             exit 1
         fi
+        node_ready="ready"
     fi
 
-    # Install the desktop build tools outside npm.
-    if [ "$name" == "scratch-desktop" ]; then
-        echo "Installing packages required for Windows Electron builds (wine64, wine32:i386, mono-devel, libnss3) ..." | tee -a "$log_file"
-        sudo apt install -y wine64 wine32:i386 mono-devel libnss3 2>&1 | tee -a "$log_file"
-        if [ "$?" != "0" ]; then
-            echo "Error: Could not install scratch-desktop Windows build packages. See $log_file" >&2
-            exit 1
-        fi
+    # Do not install dependencies using an unknown Node.js version.
+    if [ -z "$node_ready" ]; then
+        echo "Skipping $name npm dependencies because the Node.js version is unavailable." | tee -a "$log_file"
+        return
     fi
 
     # install npm dependencies
@@ -231,13 +288,27 @@ install_repository() {
 echo "Repositories will be stored in: $jt_scratch_repos"
 echo "Logs will be stored in: $logs_dir"
 
+# Install desktop build tools even when repositories are not yet available.
+desktop_log="$logs_dir/install_scratch-desktop.log"
+: > "$desktop_log"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not write log file: $desktop_log" >&2
+    exit 1
+fi
+echo "Installing packages required for Windows Electron builds (wine64, wine32:i386, mono-devel, libnss3) ..." | tee -a "$desktop_log"
+sudo apt install -y wine64 wine32:i386 mono-devel libnss3 2>&1 | tee -a "$desktop_log"
+if [ "$?" != "0" ]; then
+    echo "Error: Could not install scratch-desktop Windows build packages. See $desktop_log" >&2
+    exit 1
+fi
+
 # Install the repositories in the specified order.
 install_repository "scratch-editor" "https://github.com/jtLabHIU/scratch-editor.git"
 install_repository "scratch-desktop" "https://github.com/jtLabHIU/scratch-desktop.git"
 install_repository "s3h" "https://github.com/jtLabHIU/s3h.git"
 
 # Set up Windows Node.js after the Linux installation.
-if [ "$ETROBO_OS" == "win" ]; then
+if [ "$ETROBO_OS" == "win" ] && [ -n "$node_ready" ]; then
     node_version="$(cat "$jt_scratch_repos/scratch-editor/.nvmrc")"
     if [ "$?" != "0" ] || [ "$node_version" == "" ]; then
         echo "Error: Could not read the Windows Node.js version from $jt_scratch_repos/scratch-editor/.nvmrc" >&2
@@ -271,6 +342,20 @@ if [ "$ETROBO_OS" == "win" ]; then
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$powershell_script_windows" -NodeVersion "$node_version" 2>&1 | tee -a "$windows_node_log"
     if [ "$?" != "0" ]; then
         echo "Error: Could not install Windows Node.js $node_version. See $windows_node_log" >&2
+        exit 1
+    fi
+fi
+
+if [ -n "$incomplete" ]; then
+    echo "Error: Repository or Node.js version information is missing. Run 'jtScratch install \"$jt_scratch_repos\"' to prepare the repositories." >&2
+    exit 1
+fi
+
+# Avoid selecting a clone location until a no-clone setup is complete.
+if [ -n "$no_clone" ] && [ ! -L "$repos_link" ]; then
+    ln -s "$jt_scratch_repos" "$repos_link"
+    if [ "$?" != "0" ]; then
+        echo "Error: Could not create symbolic link at $repos_link. Use a filesystem that supports symbolic links." >&2
         exit 1
     fi
 fi

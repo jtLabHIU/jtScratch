@@ -60,6 +60,7 @@ jtScratch activate deactivate
 ```
 
 VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによって環境が有効化されます。
+この自動タスクによる有効化では、`addonman` を経由せずにワークスペースを開いた場合もクローンを行いません。
 変更後は少なくとも `bash -n scripts/<対象スクリプト>` を実行し、シェル構文を検証します。
 
 ## シェルスクリプト規約
@@ -73,13 +74,14 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 - 処理のブロックごとに、その動作内容を表すコメントを平易な英語で書きます。
 - `--help`/`usage` と `--version`/`version`/`ver` の動作を維持します。
 - サブコマンド名とスクリプト名を一致させます。
+- フラグを用いた処理を行う場合、ある変数に0を代入してからif内で1にするのではなく、ある変数をunsetしてから変数の値を意味のある文字列にするようにし、フラグが立っているかどうかは、その変数に文字列が代入されているかどうかで判断してください。
 
 ## パスと環境変数
 
 - アドオンの絶対パスは `$ETROBO_ADDON/$addon_name` または `$addon_dir` として扱います。
 - `$NVM_DIR` は未設定時に `$HOME/.nvm` を使用します。
 - Node.jsのバージョンは `repos/scratch-editor/.nvmrc` を正として扱います。
-- `jtScratchRepos` は実際のクローン先です。絶対パスで指定し、未指定時は `$ETROBO_USERPROFILE/jtScratchRepos` を使用します。Windows環境ではWindowsファイルシステムからアクセス可能な場所を指定します。
+- `jtScratchRepos` は実際のクローン先です。絶対パスで指定し、未指定時は `$ETROBO_USERPROFILE/jtScratchRepos` を使用します。ただし `--no-clone` で既存の `repos` リンクがある場合はそのリンク先を使用します。Windows環境ではWindowsファイルシステムからアクセス可能な場所を指定します。
 - WSLでは、Windows側のパス変換に `wslpath`、Node.jsのセットアップに `powershell.exe` を必要に応じて使用します。
 - `repos` は実際のクローン先を指すシンボリックリンクとし、内部スクリプトからの固定された参照パスとして扱います。既存のリンク先を勝手に削除・変更しません。
 - `ETROBO_ADDON_JTSCRATCH_ACTIVATION` は有効化済みシェルでのみ `activated` を設定します。
@@ -90,6 +92,7 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 - `scripts/install` が実際のクローン先を準備し、`repos/` のシンボリックリンクを作成します。リンクを配置するファイルシステムはNTFSなどシンボリックリンクをサポートする必要があることをユーザーに案内します。
 - `--no-clone` なしの `jtScratch install` は、不足しているリポジトリをクローンします。`--no-clone` を指定した場合は、不足しているリポジトリをクローンしません。
 - `--no-clone` を指定し、クローン先が指定されておらず `repos` のリンクが既にある場合は、そのリンク先を利用します。クローン先の指定が既存のリンク先と異なる場合はエラーとし、既存のリンク先は変更しません。
+- `--no-clone` で既存の `repos` リンクがない場合、リポジトリの準備が完了するまで新しいリンクを作成しません。
 - 対象ディレクトリが存在する場合は再cloneせず、Gitリポジトリとして利用します。
 - 既存ディレクトリがGitリポジトリでない場合は、誤った上書きをせずエラーにします。
 - 各リポジトリのログは別々に `logs/install_<repository-name>.log`へ保存します。
@@ -127,11 +130,11 @@ VS Codeでは、`jtScratch.code-workspace` を開くと自動タスクによっ�
 変更がスクリプトに影響する場合は、アドオンディレクトリで `scripts/` 配下のPowerShellスクリプト以外のファイルを `bash -n` で確認します。
 
 ```sh
-failed=0
+unset failed
 while IFS= read -r -d '' script; do
-    bash -n "$script" || failed=1
+    bash -n "$script" || failed="failed"
 done < <(find scripts -type f ! -name '*.ps1' -print0)
-[ "$failed" == 0 ]
+[ -z "$failed" ]
 ```
 
 PowerShellスクリプトも、PowerShellでアドオンディレクトリから構文を確認します。スクリプト自体は実行しません。

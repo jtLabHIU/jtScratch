@@ -10,6 +10,233 @@ ADDON_DIR = Path(__file__).resolve().parents[1]
 
 
 class ScriptValidationTests(unittest.TestCase):
+    def test_addonman_marks_activation_source(self):
+        manager = ADDON_DIR.parent / "scripts/addonman"
+        if not manager.is_file():
+            self.skipTest("addonman is not available")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scripts = root / "jtScratch/scripts"
+            scripts.mkdir(parents=True)
+            launcher = scripts / "jtScratch"
+            launcher.write_text(
+                '#!/usr/bin/env bash\n'
+                'printf "%s %s" "$ETROBO_ADDON_ACTIVATION_SOURCE" "$*" > "$CALLS"\n'
+            )
+            launcher.chmod(0o755)
+            commands = root / "commands"
+            commands.mkdir()
+            terminal = commands / "x-terminal-emulator"
+            terminal.write_text('#!/usr/bin/env bash\nexec bash -c "$4"\n')
+            terminal.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update(
+                ETROBO_ADDON=str(root), CALLS=str(root / "calls"),
+                ETROBO_OS="linux", PATH=f"{commands}{os.pathsep}{environment['PATH']}",
+            )
+            for mode in ("shell", "terminal"):
+                with self.subTest(mode=mode):
+                    result = subprocess.run(
+                        ["bash", str(manager), "open", "jtScratch", mode],
+                        env=environment, capture_output=True, text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual((root / "calls").read_text(), "addonman activate")
+
+    def test_no_clone_installs_tools_and_reports_incomplete_setup_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            addon = root / "jtScratch"
+            addon.mkdir()
+            commands = root / "commands"
+            commands.mkdir()
+            calls = root / "calls"
+            for name, body in (
+                ("sudo", 'echo "sudo $*" >> "$CALLS"'),
+                ("dpkg", "echo i386"),
+                ("npm", 'echo "npm $*" >> "$CALLS"'),
+            ):
+                command = commands / name
+                command.write_text(f"#!/usr/bin/env bash\n{body}\n")
+                command.chmod(0o755)
+            nvm = root / "nvm"
+            nvm.mkdir()
+            (nvm / "nvm.sh").write_text(
+                'nvm() { echo "nvm $*" >> "$CALLS"; }\n'
+            )
+            environment = os.environ.copy()
+            environment.update(
+                ETROBO_ADDON=str(root),
+                ETROBO_USERPROFILE=str(root),
+                NVM_DIR=str(nvm),
+                ETROBO_OS="linux",
+                PATH=f"{commands}{os.pathsep}{environment['PATH']}",
+                CALLS=str(calls),
+                no_clone="inherited",
+                incomplete="inherited",
+                node_ready="inherited",
+            )
+            result = subprocess.run(
+                ["bash", str(ADDON_DIR / "scripts/install"), "--no-clone"],
+                env=environment, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stderr.count("Run 'jtScratch install "), 1)
+            self.assertFalse((addon / "repos").is_symlink())
+            self.assertFalse((root / "jtScratchRepos").exists())
+
+            target = root / "existing-repos"
+            target.mkdir()
+            (addon / "repos").symlink_to("../existing-repos", target_is_directory=True)
+            editor = target / "scratch-editor"
+            subprocess.run(["git", "init", "-q", str(editor)], check=True)
+            result = subprocess.run(
+                ["bash", str(ADDON_DIR / "scripts/install"), "--no-clone"],
+                env=environment, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stderr.count("Run 'jtScratch install "), 1)
+            self.assertIn(str(target), result.stderr)
+            self.assertIn(".nvmrc", result.stderr)
+            self.assertNotIn("nvm install", calls.read_text())
+            self.assertNotIn("npm ", calls.read_text())
+            self.assertIn("wine64", calls.read_text())
+            self.assertFalse((target / "scratch-desktop").exists())
+            self.assertFalse((target / "s3h").exists())
+            self.assertEqual((addon / "repos").resolve(), target)
+
+            before = calls.read_text()
+            result = subprocess.run(
+                ["bash", str(ADDON_DIR / "scripts/install"), "--no-clone", str(root / "other")],
+                env=environment, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("already points to a different directory", result.stderr)
+            self.assertEqual(calls.read_text(), before)
+
+            (editor / ".nvmrc").write_text("20\n")
+            for name in ("scratch-desktop", "s3h"):
+                subprocess.run(["git", "init", "-q", str(target / name)], check=True)
+            result = subprocess.run(
+                ["bash", str(ADDON_DIR / "scripts/install"), "--no-clone"],
+                env=environment, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("nvm install 20", calls.read_text())
+            self.assertEqual(calls.read_text().count("npm install"), 3)
+            self.assertIn("Installing packages required", (addon / "logs/install_scratch-desktop.log").read_text())
+            (addon / "repos").unlink()
+            result = subprocess.run(
+                ["bash", str(ADDON_DIR / "scripts/install"), "--no-clone", str(target)],
+                env=environment, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((addon / "repos").resolve(), target)
+
+    def test_activation_passes_no_clone_only_for_managed_launches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scripts = root / "jtScratch/scripts"
+            scripts.mkdir(parents=True)
+            installer = scripts / "install"
+            installer.write_text('#!/usr/bin/env bash\nprintf "%s" "$*" > "$CALLS"\nexit 1\n')
+            installer.chmod(0o755)
+            calls = root / "calls"
+            environment = os.environ.copy()
+            environment.update(ETROBO_ADDON=str(root), CALLS=str(calls))
+            for source, expected in (("addonman", "--no-clone"), ("workspace", "--no-clone"), ("", "")):
+                environment["ETROBO_ADDON_ACTIVATION_SOURCE"] = source
+                result = subprocess.run(
+                    ["bash", str(ADDON_DIR / "scripts/activate")],
+                    env=environment, capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(calls.read_text(), expected)
+
+    def test_normal_install_clones_missing_repositories(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "jtScratch").mkdir()
+            commands = root / "commands"
+            commands.mkdir()
+            git = shutil.which("git")
+            for name, body in (
+                ("sudo", "exit 0"),
+                ("dpkg", "echo i386"),
+                ("npm", "exit 0"),
+                ("git", (
+                    'if [ "$1" == "clone" ]; then\n'
+                    '  echo "$2" >> "$CALLS"\n'
+                    '  mkdir -p "$3/.git"\n'
+                    '  if [ "${3##*/}" == "scratch-editor" ]; then echo 20 > "$3/.nvmrc"; fi\n'
+                    '  exit 0\n'
+                    'fi\n'
+                    f'exec "{git}" "$@"'
+                )),
+            ):
+                command = commands / name
+                command.write_text(f"#!/usr/bin/env bash\n{body}\n")
+                command.chmod(0o755)
+            nvm = root / "nvm"
+            nvm.mkdir()
+            (nvm / "nvm.sh").write_text("nvm() { return 0; }\n")
+            environment = os.environ.copy()
+            environment.update(
+                ETROBO_ADDON=str(root), NVM_DIR=str(nvm), ETROBO_OS="linux",
+                PATH=f"{commands}{os.pathsep}{environment['PATH']}",
+                CALLS=str(root / "calls"),
+                no_clone="inherited", incomplete="inherited", node_ready="inherited",
+            )
+            result = subprocess.run(
+                ["bash", str(ADDON_DIR / "scripts/install"), str(root / "repos")],
+                env=environment, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                (root / "calls").read_text().splitlines(),
+                [
+                    "https://github.com/jtLabHIU/scratch-editor.git",
+                    "https://github.com/jtLabHIU/scratch-desktop.git",
+                    "https://github.com/jtLabHIU/s3h.git",
+                ],
+            )
+
+    def test_windows_activation_passes_no_clone_to_installer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            addon = root / "jtScratch"
+            for name in ("scratch-editor", "scratch-desktop", "s3h"):
+                subprocess.run(["git", "init", "-q", str(addon / "repos" / name)], check=True)
+            (addon / "repos/scratch-editor/.nvmrc").write_text("20\n")
+            scripts = addon / "scripts"
+            scripts.mkdir()
+            (scripts / "setup-windows-node.ps1").write_text("")
+            installer = scripts / "install"
+            installer.write_text('#!/usr/bin/env bash\nprintf "%s" "$*" > "$CALLS"\nexit 1\n')
+            installer.chmod(0o755)
+            nvm = root / "nvm"
+            nvm.mkdir()
+            (nvm / "nvm.sh").write_text("nvm() { return 0; }\n")
+            commands = root / "commands"
+            commands.mkdir()
+            for name, body in (("wslpath", "echo mock-path"), ("powershell.exe", "exit 1")):
+                command = commands / name
+                command.write_text(f"#!/usr/bin/env bash\n{body}\n")
+                command.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update(
+                ETROBO_ADDON=str(root), ETROBO_OS="win",
+                ETROBO_ADDON_ACTIVATION_SOURCE="addonman",
+                NVM_DIR=str(nvm), CALLS=str(root / "calls"),
+                PATH=f"{commands}{os.pathsep}{environment['PATH']}",
+            )
+            result = subprocess.run(
+                ["bash", str(ADDON_DIR / "scripts/activate")],
+                env=environment, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual((root / "calls").read_text(), "--no-clone")
+
     def test_build_logs_are_separate_and_include_failures(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -121,6 +348,7 @@ class ScriptValidationTests(unittest.TestCase):
                 INSTALL_SCRIPT=str(ADDON_DIR / "scripts/install"),
                 jt_scratch_repos=str(repos),
                 logs_dir=str(logs),
+                node_ready="ready",
             )
             command = (
                 'set -o pipefail; bash() { echo "mock npm install"; }; '
@@ -179,9 +407,10 @@ class ScriptValidationTests(unittest.TestCase):
             nvm = root / "nvm"
             nvm.mkdir()
             (nvm / "nvm.sh").write_text("return 2\n")
+            (root / "jtScratch").mkdir()
             environment = os.environ.copy()
             environment.update(
-                ETROBO_ADDON=str(ADDON_DIR.parent),
+                ETROBO_ADDON=str(root),
                 NVM_DIR=str(nvm),
                 PATH=f"{commands}{os.pathsep}{environment['PATH']}",
             )

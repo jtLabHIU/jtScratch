@@ -21,7 +21,8 @@
 				],
 				"options": {
 					"env": {
-						"ETROBO_ADDON": "${workspaceFolder}/.."
+						"ETROBO_ADDON": "${workspaceFolder}/..",
+						"ETROBO_ADDON_ACTIVATION_SOURCE": "workspace"
 					}
 				},
 				"isBackground": true,
